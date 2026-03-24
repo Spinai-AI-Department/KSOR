@@ -1,7 +1,7 @@
 
-  # KOSR
+  # KSOR
 
-  This is a code bundle for KOSR. The original project is available at https://www.figma.com/design/PAc9lunTQ27sYaq5DVK76K/KOSR.
+  This is a code bundle for KSOR. The original project is available at https://www.figma.com/design/PAc9lunTQ27sYaq5DVK76K/KOSR.
 
   ## Running the code
 
