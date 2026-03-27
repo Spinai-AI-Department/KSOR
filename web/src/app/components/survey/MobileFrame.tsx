@@ -8,7 +8,7 @@ export function MobileFrame({ children }: MobileFrameProps) {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         backgroundColor: '#f1f5f9',
         display: 'flex',
         justifyContent: 'center',
@@ -21,7 +21,7 @@ export function MobileFrame({ children }: MobileFrameProps) {
         style={{
           width: '100%',
           maxWidth: '430px',
-          minHeight: '100vh',
+          minHeight: '100dvh',
           backgroundColor: '#ffffff',
           display: 'flex',
           flexDirection: 'column',
