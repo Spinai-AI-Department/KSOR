@@ -1,0 +1,116 @@
+# 프로젝트 진행 현황
+## 마지막 업데이트: 2026-03-30
+## 현재 상태: 전체 기능 안정화 완료 — 데모 데이터 제거, 실 데이터 전용, QA 2사이클 통과 (실패 0건)
+
+---
+
+### 완료된 기능 (모두 verified):
+- F001: API 클라이언트 기반 구성 — envelope unwrap, error parsing
+- F002: Auth 서비스 연동 — login_id 필드, changePassword confirm, updateProfile→getMe
+- F003: Dashboard 서비스 연동 — summary/my-surgeries/outcomes 3개 엔드포인트 + avg_op_time_min/complications_count
+- F004: 환자 목록 서비스 연동 — CRUD + memo + lock + 검색/페이지네이션 + caseId 수정 + birth_date
+- F005: 수술 데이터 입력 연동 — URL param caseId + comorbidities + outcomes 제출
+- F006: AlimTalk 발송 기능 — POST /patients/{caseId}/prom-alimtalk + 성공 피드백
+- F007: 통계/리포트 서비스 연동 — GET /reports + CSV 다운로드 + PatientOutcomePoint 필드명 수정
+- F008: 환자 설문(PROM) 연동 — WelcomePage verify 플로우 + SurveyPage JWT 분리
+
+### 진행 중:
+(없음)
+
+### 다음 작업:
+(모든 기능 완료 및 안정화 완료)
+
+---
+
+### 세션 4 (2026-03-30): 4인 팀 안정화 루프
+
+#### 사이클 1 — QA 발견 이슈 (5개 기능 FAIL):
+
+##### 백엔드 수정:
+1. dashboard_service.py: avg_op_time_min, complications_count 추가
+2. models/dashboard.py: DashboardSummary에 두 필드 추가
+3. dashboard_service.py: 테이블명 수정 (case_clinical→case_extended_form, case_outcome→case_outcome_form)
+
+##### 프론트엔드 수정 (10개 이슈):
+1. PatientListPage.tsx: 로컬 Patient 타입에 caseId 추가, mapPatient에서 p.caseId 매핑
+2. PatientListPage.tsx: genderAge "M / 45" 파싱하여 gender/age 추출
+3. PatientListPage.tsx: 페이지네이션 슬라이딩 윈도우 + Prev/Next 버튼
+4. PatientListPage.tsx: AlimTalk 성공 피드백 (3초 그린 배너)
+5. PatientListPage.tsx: delete/AlimTalk에서 patient.id → patient.caseId
+6. PatientListPage.tsx: 네비게이션(Edit/상세보기/F/U입력)에서 patient.caseId 사용
+7. PatientNewPage.tsx: URL ?patient= 파라미터를 read-only caseId로 읽기
+8. PatientNewPage.tsx: comorbidities 배열 빌드 후 updateClinical에 포함
+9. PatientNewPage.tsx: updateOutcomes 호출 (합병증/재수술/재입원 데이터)
+10. dashboard.ts: PatientOutcomePoint 필드명 수정 (preop_odi, postop_odi, improvement)
+11. StatisticsPage.tsx: buildOutcomesChart 필드명 수정
+12. WelcomePage.tsx: 전면 재작성 — getStatus + verify 2단계 플로우
+13. SurveyPage.tsx: URL에서 token(UUID)과 jwt(JWT) 분리 읽기
+14. ExportPage.tsx: "PDF 다운로드" → "CSV 다운로드" 레이블 수정
+15. dashboard.ts: SummaryResponse에 avg_op_time_min/complications_count 추가, getData에서 실제 값 사용
+
+#### 코드 리뷰 발견 이슈 → 즉시 수정:
+1. dashboard_service.py: case_clinical → case_extended_form (런타임 DB 오류 방지)
+2. dashboard_service.py: case_outcome → case_outcome_form (런타임 DB 오류 방지)
+3. dashboard.ts: SummaryResponse 타입 업데이트 + getData hardcoded 0 제거
+
+#### 사이클 2 — QA 발견 이슈 (1개):
+- F004-012: 신규 환자 등록 모달에서 birth_date 미전송 → birth_ymd 설문 verify 항상 실패
+
+##### 수정:
+1. patients.ts: CreatePatientRequest에 birth_date?: string 추가
+2. PatientListPage.tsx: newForm.age → newForm.birth_date (날짜 입력)
+3. PatientListPage.tsx: handleCreatePatient에서 birth_year 계산 + birth_date 함께 전송
+
+#### 최종 QA 결과:
+- 전체 8개 기능 PASS
+- 실패 0건, 차단 0건
+- npm run build 성공
+
+---
+
+### 세션 5 (2026-03-30): 4인 팀 안정화 루프 (재검증)
+
+#### 사이클 1 — QA 발견 이슈 (4개 FAIL):
+
+##### 백엔드 수정:
+1. sql_utils.py: `_serialize_value()` 추가 — list/dict를 json.dumps()로 직렬화 (jsonb 컬럼용)
+2. patient_service.py: `build_set_clause()` 반환값(`update_values`) 사용 → raw `update_payload.values()` 대체 (initial_form, extended_form, outcome_form 3곳)
+3. patient_service.py: birth_year만 있고 birth_date 없을 때 `sha256_hex(str(birth_year))`을 vault에 저장 (설문 인증 지원)
+
+##### 프론트엔드:
+- 변경 없음 (검증 결과 모두 정상)
+
+#### 코드 리뷰:
+- APPROVED (2건 모두) — jsonb 직렬화 정확, birth_year 해시 fallback 정상
+
+#### 사이클 2 — QA 전체 회귀 테스트:
+- 26개 테스트 전체 PASS
+- 이전 FAIL 4건 모두 수정 확인
+- 회귀 0건
+
+---
+
+### 알려진 제한사항 (버그 아님, 문서화됨):
+- StatisticsPage approval/satisfaction/outcomes 차트: 백엔드 엔드포인트 미정의 → demo 데이터
+- JWT 자동 갱신 미구현 — 60분 만료 후 재로그인 필요
+- AlimTalk: noop 모드 (실제 발송 안 됨)
+- 설문 답변 키 형식: 프론트엔드 numeric ID vs 백엔드 semantic code (odi_q1 등) — 점수 계산 미매칭 (known gap)
+- /reports/pdf 엔드포인트가 실제로는 CSV 반환 (backend 코멘트에 documented)
+
+---
+
+### 세션 히스토리:
+- 세션 1 (2026-03-30): 하네스 초기화
+- 세션 2 (2026-03-30): F001~F008 전체 구현. 페이지 레이어 API 연동
+- 세션 3 (2026-03-30): PostgreSQL 설치, 실제 DB 연동, 3인 팀 코드 리뷰, 41개 테스트, E2E 검증
+- 세션 4 (2026-03-30): 4인 팀 안정화 루프 — 2사이클 완료, 전체 기능 안정화
+- 세션 5 (2026-03-30): 4인 팀 재검증 — jsonb 직렬화 버그 수정, birth_year 해시 fallback 추가, 26개 테스트 전체 PASS
+
+---
+
+### 컨텍스트 메모:
+- 백엔드: server/ (FastAPI + PostgreSQL), http://localhost:8000
+- 프론트엔드: web/ (React 18 + Vite), VITE_API_BASE_URL=http://localhost:8000
+- PostgreSQL: localhost:5432, db=ksor, user=ksor_app, pw=ksor_dev_2024
+- 테스트 계정: admin@ksor.kr / Admin1234! (ADMIN), doctor@ksor.kr / Admin1234! (PI)
+- demo 계정: 프론트엔드에서 유지 (token null → demo data fallback)

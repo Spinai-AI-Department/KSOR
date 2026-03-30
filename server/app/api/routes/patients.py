@@ -40,6 +40,18 @@ async def create_patient(payload: PatientCreateRequest, ctx: AuthenticatedContex
     return success("신규 환자가 성공적으로 등록되었습니다.", data.model_dump(), status_code=201)
 
 
+@router.get("/{case_id}")
+async def get_patient_detail(case_id: UUID, ctx: AuthenticatedContext = Depends(require_auth)):
+    data = await patient_service.get_case_detail(ctx.conn, case_id)
+    return success("환자 상세 정보 조회가 완료되었습니다.", data)
+
+
+@router.delete("/{case_id}")
+async def delete_patient(case_id: UUID, ctx: AuthenticatedContext = Depends(require_auth)):
+    data = await patient_service.delete_case(ctx.conn, case_id, ctx.principal.sub)
+    return success("환자 케이스가 삭제(보관) 처리되었습니다.", data)
+
+
 @router.patch("/{case_id}/clinical")
 async def update_clinical(case_id: UUID, payload: ClinicalUpdateRequest, ctx: AuthenticatedContext = Depends(require_auth)):
     data = await patient_service.update_clinical(ctx.conn, case_id, payload)

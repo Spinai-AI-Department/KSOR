@@ -1,0 +1,68 @@
+{
+  "features": [
+    {
+      "id": "F001",
+      "name": "API 클라이언트 기반 구성",
+      "description": "web/src/api/client.ts — 백엔드 base URL, Authorization 헤더, JSON 파싱, non-2xx 에러 처리, envelope unwrap 구현",
+      "status": "verified",
+      "priority": 1,
+      "dependencies": []
+    },
+    {
+      "id": "F002",
+      "name": "Auth 서비스 연동",
+      "description": "login(login_id 필드 수정), getMe, updateProfile(void→getMe 재호출), changePassword(new_password_confirm 추가). 실제 DB 인증 동작 확인",
+      "status": "verified",
+      "priority": 2,
+      "dependencies": ["F001"]
+    },
+    {
+      "id": "F003",
+      "name": "Dashboard 서비스 연동",
+      "description": "GET /dashboard/summary, /my-surgeries, /outcomes 실제 DB 데이터 렌더링. 데이터 필드명 정렬 완료",
+      "status": "verified",
+      "priority": 3,
+      "dependencies": ["F002"]
+    },
+    {
+      "id": "F004",
+      "name": "환자 목록 서비스 연동",
+      "description": "POST /patients, GET /patients(keyword/page/size), PATCH clinical/outcomes, PUT memo, PATCH lock. 실제 DB CRUD 동작 확인",
+      "status": "verified",
+      "priority": 4,
+      "dependencies": ["F002"]
+    },
+    {
+      "id": "F005",
+      "name": "수술 데이터 입력 서비스 연동",
+      "description": "PatientNewPage → PATCH /patients/{id}/clinical (surgeryService.create 제거, updateClinical 사용). 실제 DB 저장 확인",
+      "status": "verified",
+      "priority": 5,
+      "dependencies": ["F004"]
+    },
+    {
+      "id": "F006",
+      "name": "AlimTalk 발송 기능",
+      "description": "POST /patients/{id}/prom-alimtalk (timepoint_code 파라미터). noop 모드에서 정상 202 응답 확인",
+      "status": "verified",
+      "priority": 6,
+      "dependencies": ["F004"]
+    },
+    {
+      "id": "F007",
+      "name": "통계 / 리포트 서비스 연동",
+      "description": "GET /reports, GET /reports/pdf(CSV). 실제 DB 집계 데이터 반환 확인. ExportPage 에러 상태 추가",
+      "status": "verified",
+      "priority": 7,
+      "dependencies": ["F002"]
+    },
+    {
+      "id": "F008",
+      "name": "환자 설문(PROM) 공개 라우트 연동",
+      "description": "survey status→verify→questions→save→submit 전체 플로우 실제 DB 동작 확인. 41개 테스트 통과",
+      "status": "verified",
+      "priority": 8,
+      "dependencies": ["F001"]
+    }
+  ]
+}

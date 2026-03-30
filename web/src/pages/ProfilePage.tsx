@@ -9,23 +9,19 @@ import {
   Lock,
   Eye,
   EyeOff,
-  CheckCircle2,
-  AlertCircle,
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { CenterToast, type ToastData } from "@/components/ui/toast-modal";
 
 type Tab = "info" | "password";
-
-interface Toast {
-  type: "success" | "error";
-  message: string;
-}
 
 export function ProfilePage() {
   const { user, updateUser, changePassword } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("info");
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [pwErrors, setPwErrors] = useState<Record<string, boolean>>({});
+  const [pwErrorMsgs, setPwErrorMsgs] = useState<Record<string, string>>({});
 
   // ── Info form state ──────────────────────────────────────
   const [infoForm, setInfoForm] = useState({
@@ -49,11 +45,6 @@ export function ProfilePage() {
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
   const [pwLoading, setPwLoading] = useState(false);
 
-  const showToast = (type: "success" | "error", message: string) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
-
   const handleInfoChange = (field: string, value: string) => {
     setInfoForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -63,24 +54,43 @@ export function ProfilePage() {
     setInfoLoading(true);
     const result = await updateUser(infoForm);
     setInfoLoading(false);
-    if (result.success) showToast("success", "프로필이 성공적으로 업데이트되었습니다.");
-    else showToast("error", result.error ?? "업데이트에 실패했습니다.");
+    if (result.success) setToast({ type: "success", message: "프로필이 성공적으로 업데이트되었습니다." });
+    else setToast({ type: "error", message: result.error ?? "업데이트에 실패했습니다." });
   };
 
   const handlePwSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: Record<string, string> = {};
+    const errorFlags: Record<string, boolean> = {};
+    if (pwForm.next.length < 6) {
+      errors['새 비밀번호'] = '6자 이상 입력해주세요.';
+      errorFlags['next'] = true;
+    }
     if (pwForm.next !== pwForm.confirm) {
-      showToast("error", "새 비밀번호가 일치하지 않습니다.");
+      errors['새 비밀번호 확인'] = '새 비밀번호와 일치하지 않습니다.';
+      errorFlags['confirm'] = true;
+    }
+    if (Object.keys(errors).length > 0) {
+      setPwErrors(errorFlags);
+      setPwErrorMsgs(errors);
+      // Focus first error field
+      setTimeout(() => {
+        const firstKey = Object.keys(errorFlags)[0];
+        const el = document.querySelector<HTMLInputElement>(`[data-field="${firstKey}"]`);
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); }
+      }, 0);
       return;
     }
+    setPwErrorMsgs({});
+    setPwErrors({});
     setPwLoading(true);
     const result = await changePassword(pwForm.current, pwForm.next);
     setPwLoading(false);
     if (result.success) {
-      showToast("success", "비밀번호가 변경되었습니다.");
+      setToast({ type: "success", message: "비밀번호가 변경되었습니다." });
       setPwForm({ current: "", next: "", confirm: "" });
     } else {
-      showToast("error", result.error ?? "비밀번호 변경에 실패했습니다.");
+      setToast({ type: "error", message: result.error ?? "비밀번호 변경에 실패했습니다." });
     }
   };
 
@@ -88,23 +98,7 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm transition-all ${
-            toast.type === "success"
-              ? "bg-green-50 border border-green-200 text-green-700"
-              : "bg-red-50 border border-red-200 text-red-700"
-          }`}
-        >
-          {toast.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          )}
-          {toast.message}
-        </div>
-      )}
+      <CenterToast toast={toast} onClose={() => setToast(null)} />
 
       <div className="max-w-3xl mx-auto">
         {/* Header */}
@@ -161,6 +155,7 @@ export function ProfilePage() {
                     value={infoForm.name}
                     onChange={(v) => handleInfoChange("name", v)}
                     placeholder="홍길동"
+                    readOnly
                   />
                   <Field
                     label="이메일"
@@ -191,18 +186,21 @@ export function ProfilePage() {
                     value={infoForm.hospital}
                     onChange={(v) => handleInfoChange("hospital", v)}
                     placeholder="○○대학교병원"
+                    readOnly
                   />
                   <Field
                     label="진료과"
                     value={infoForm.department}
                     onChange={(v) => handleInfoChange("department", v)}
                     placeholder="신경외과"
+                    readOnly
                   />
                   <Field
                     label="직책"
                     value={infoForm.role}
                     onChange={(v) => handleInfoChange("role", v)}
                     placeholder="신경외과 전문의"
+                    readOnly
                   />
                 </div>
               </div>
@@ -218,6 +216,7 @@ export function ProfilePage() {
                     value={infoForm.specialty}
                     onChange={(v) => handleInfoChange("specialty", v)}
                     placeholder="신경외과"
+                    readOnly
                   />
                   <Field
                     label="면허번호"
@@ -225,6 +224,7 @@ export function ProfilePage() {
                     onChange={(v) => handleInfoChange("licenseNumber", v)}
                     placeholder="12345"
                     icon={<BadgeCheck className="w-4 h-4" />}
+                    readOnly
                   />
                 </div>
               </div>
@@ -267,19 +267,25 @@ export function ProfilePage() {
                 />
                 <PwField
                   label="새 비밀번호"
+                  fieldKey="next"
                   value={pwForm.next}
                   show={showPw.next}
-                  onChange={(v) => setPwForm((p) => ({ ...p, next: v }))}
+                  onChange={(v) => { setPwForm((p) => ({ ...p, next: v })); setPwErrors((prev) => ({ ...prev, next: false })); setPwErrorMsgs((prev) => { const { '새 비밀번호': _, ...rest } = prev; return rest; }); }}
                   onToggle={() => setShowPw((s) => ({ ...s, next: !s.next }))}
                   placeholder="6자 이상 입력"
+                  error={pwErrors['next']}
+                  errorMsg={pwErrorMsgs['새 비밀번호']}
                 />
                 <PwField
                   label="새 비밀번호 확인"
+                  fieldKey="confirm"
                   value={pwForm.confirm}
                   show={showPw.confirm}
-                  onChange={(v) => setPwForm((p) => ({ ...p, confirm: v }))}
+                  onChange={(v) => { setPwForm((p) => ({ ...p, confirm: v })); setPwErrors((prev) => ({ ...prev, confirm: false })); setPwErrorMsgs((prev) => { const { '새 비밀번호 확인': _, ...rest } = prev; return rest; }); }}
                   onToggle={() => setShowPw((s) => ({ ...s, confirm: !s.confirm }))}
                   placeholder="새 비밀번호 재입력"
+                  error={pwErrors['confirm']}
+                  errorMsg={pwErrorMsgs['새 비밀번호 확인']}
                 />
 
                 {/* Strength hint */}
@@ -346,6 +352,7 @@ function Field({
   placeholder,
   type = "text",
   icon,
+  readOnly = false,
 }: {
   label: string;
   value: string;
@@ -353,6 +360,7 @@ function Field({
   placeholder?: string;
   type?: string;
   icon?: React.ReactNode;
+  readOnly?: boolean;
 }) {
   return (
     <div>
@@ -366,7 +374,12 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full ${icon ? "pl-9" : "pl-3"} pr-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-gray-50`}
+          readOnly={readOnly}
+          className={`w-full ${icon ? "pl-9" : "pl-3"} pr-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none ${
+            readOnly
+              ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+              : "focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-gray-50"
+          }`}
         />
       </div>
     </div>
@@ -375,18 +388,24 @@ function Field({
 
 function PwField({
   label,
+  fieldKey,
   value,
   show,
   onChange,
   onToggle,
   placeholder,
+  error = false,
+  errorMsg,
 }: {
   label: string;
+  fieldKey?: string;
   value: string;
   show: boolean;
   onChange: (v: string) => void;
   onToggle: () => void;
   placeholder?: string;
+  error?: boolean;
+  errorMsg?: string;
 }) {
   return (
     <div>
@@ -395,10 +414,11 @@ function PwField({
         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type={show ? "text" : "password"}
+          data-field={fieldKey}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-gray-50"
+          className={`w-full pl-9 pr-10 py-2.5 border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-gray-50 ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200'}`}
         />
         <button
           type="button"
@@ -408,6 +428,7 @@ function PwField({
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>
+      {errorMsg && <p className="text-xs text-red-500 mt-1">{errorMsg}</p>}
     </div>
   );
 }

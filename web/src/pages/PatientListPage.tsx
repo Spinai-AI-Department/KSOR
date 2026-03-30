@@ -1,11 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router";
 import { Search, ChevronDown, Edit, MoreHorizontal, Plus, X, Calendar } from "lucide-react";
+import { patientService, type Patient as ApiPatient } from "../api/patients";
+import { dashboardService } from "../api/dashboard";
+import { useAuth } from "../context/AuthContext";
+import { CenterToast, ConfirmDialog, type ToastData } from "@/components/ui/toast-modal";
 
 type FollowUpStatus = "Completed" | "Pending" | "Not Due" | "Overdue";
 type TabType = "list" | "complication";
 
 interface Patient {
   id: string;
+  caseId: string;
   name: string;
   age: number;
   gender: "M" | "F";
@@ -15,29 +21,6 @@ interface Patient {
   m6: FollowUpStatus;
   yr1: FollowUpStatus;
 }
-
-const mockPatients: Patient[] = [
-  { id: "201933070", name: "John",  age: 30, gender: "M", preOp: "Completed", m1: "Completed", m3: "Pending",   m6: "Pending",   yr1: "Pending"   },
-  { id: "201933102", name: "John",  age: 31, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Pending"   },
-  { id: "201933103", name: "Naan",  age: 38, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Pending"   },
-  { id: "201933103", name: "Naan",  age: 47, gender: "M", preOp: "Completed", m1: "Completed", m3: "Pending",   m6: "Completed", yr1: "Pending"   },
-  { id: "201933107", name: "John",  age: 25, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Pending"   },
-  { id: "201933104", name: "Nahn",  age: 37, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Pending"   },
-  { id: "201933175", name: "Naan",  age: 26, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Pending"   },
-  { id: "201933161", name: "John",  age: 29, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Pending"   },
-  { id: "201933188", name: "Kim",   age: 52, gender: "F", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Pending",   yr1: "Not Due"   },
-  { id: "201933192", name: "Park",  age: 44, gender: "F", preOp: "Completed", m1: "Completed", m3: "Overdue",   m6: "Not Due",   yr1: "Not Due"   },
-  { id: "201933201", name: "Lee",   age: 61, gender: "M", preOp: "Completed", m1: "Pending",   m3: "Not Due",   m6: "Not Due",   yr1: "Not Due"   },
-  { id: "201933215", name: "Choi",  age: 33, gender: "F", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Completed" },
-];
-
-const recentFU = [
-  { id: "201933070", name: "John",  status: "입력 완료", date: "2024-03-15" },
-  { id: "201933102", name: "John",  status: "입력 완료", date: "2024-03-14" },
-  { id: "201933104", name: "Nahn",  status: "대기 중",   date: "2024-03-13" },
-  { id: "201933175", name: "Naan",  status: "입력 완료", date: "2024-03-12" },
-  { id: "201933192", name: "Park",  status: "지연",      date: "2024-03-10" },
-];
 
 const followUpPeriods = ["전체", "Pre-op", "1개월", "3개월", "6개월", "1년"];
 
@@ -70,6 +53,8 @@ function RecentFUStatusBadge({ status }: { status: string }) {
 
 // ─── 환자 목록 탭 ───────────────────────────────────────────────────────────
 function PatientListTab() {
+  const { token } = useAuth();
+  const navigate = useNavigate();
   const [searchId, setSearchId] = useState("");
   const [searchName, setSearchName] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState("전체");
@@ -77,11 +62,211 @@ function PatientListTab() {
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
 
-  const filtered = mockPatients.filter((p) => {
-    const idMatch = p.id.includes(searchId.trim());
-    const nameMatch = p.name.toLowerCase().includes(searchName.trim().toLowerCase());
-    return idMatch && nameMatch;
-  });
+  // Patient list state
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [listLoading, setListLoading] = useState(false);
+  const PAGE_SIZE = 20;
+
+  // New patient form state
+  const [newForm, setNewForm] = useState({ name: "", birth_date: "", gender: "M" as "M" | "F" });
+  const [creating, setCreating] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  // Toast & confirm dialog
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ patientId: string; caseId: string } | null>(null);
+
+  // AlimTalk
+  type FollowUpPeriodKey = 'preOp' | 'm1' | 'm3' | 'm6' | 'yr1';
+  const [alimtalkModal, setAlimtalkModal] = useState<{ patientId: string } | null>(null);
+  const [sending, setSending] = useState(false);
+  const PERIOD_LABELS: Record<FollowUpPeriodKey, string> = {
+    preOp: '수술 전', m1: '1개월', m3: '3개월', m6: '6개월', yr1: '1년',
+  };
+
+  const [alimtalkError, setAlimtalkError] = useState<string | null>(null);
+
+  const TIMEPOINT_MAP: Record<FollowUpPeriodKey, string> = {
+    preOp: 'PRE_OP', m1: 'POST_1M', m3: 'POST_3M', m6: 'POST_6M', yr1: 'POST_1Y',
+  };
+
+  const handleSendAlimtalk = async (period: FollowUpPeriodKey) => {
+    if (!token || !alimtalkModal) return;
+    setSending(true);
+    setAlimtalkError(null);
+    try {
+      // sendAlimtalk expects (caseId, { timepoint_code }, token)
+      await patientService.sendAlimtalk(
+        alimtalkModal.patientId,
+        { timepoint_code: TIMEPOINT_MAP[period] },
+        token
+      );
+      setAlimtalkModal(null);
+      setToast({ type: 'success', message: 'AlimTalk이 성공적으로 발송되었습니다.' });
+    } catch (err) {
+      setAlimtalkError(err instanceof Error ? err.message : 'AlimTalk 발송에 실패했습니다.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const fetchPatients = useCallback(async () => {
+    if (!token) return;
+    setListLoading(true);
+    try {
+      const keyword = [searchId, searchName].filter(Boolean).join(' ').trim() || undefined;
+      const periodFilterMap: Record<string, string | undefined> = {
+        '전체': undefined, 'Pre-op': 'PRE_OP', '1개월': 'POST_1M',
+        '3개월': 'POST_3M', '6개월': 'POST_6M', '1년': 'POST_1Y',
+      };
+      const status_filter = periodFilterMap[selectedPeriod];
+      const res = await patientService.list(
+        { keyword, status_filter, page, size: PAGE_SIZE },
+        token
+      );
+      // Map ApiPatient to local Patient type
+      setPatients(res.items.map((p: ApiPatient) => {
+        // parse "M / 45" or "F / -"
+        const [rawGender, rawAge] = p.genderAge.split('/').map(s => s.trim());
+        const gender = (rawGender === 'F' ? 'F' : 'M') as 'M' | 'F';
+        const age = rawAge && rawAge !== '-' ? parseInt(rawAge, 10) : 0;
+
+        // Map prom_alimtalk timepoint statuses to follow-up columns
+        const mapTimepointStatus = (timepointCode: string): FollowUpStatus => {
+          const prom = p.promAlimtalk as Record<string, unknown>;
+          if (!prom) return 'Not Due';
+
+          // Preferred: flat followup_status map from backend { PRE_OP: "COMPLETED", ... }
+          const fuStatus = prom.followup_status as Record<string, string> | undefined;
+          if (fuStatus && fuStatus[timepointCode]) {
+            const s = fuStatus[timepointCode];
+            if (s === 'COMPLETED') return 'Completed';
+            if (s === 'PENDING') return 'Pending';
+            if (s === 'OVERDUE') return 'Overdue';
+            return 'Not Due';
+          }
+
+          // Legacy: array of { timepoint_code, tracking_status }
+          if (Array.isArray(prom)) {
+            const entry = (prom as Array<Record<string, unknown>>).find(
+              e => e.timepoint_code === timepointCode
+            );
+            if (!entry) return 'Not Due';
+            const status = String(entry.tracking_status || '');
+            if (status === 'SUBMITTED' || status === 'COMPLETED') return 'Completed';
+            if (status === 'PENDING' || status === 'SENT' || status === 'OPENED') return 'Pending';
+            if (status === 'OVERDUE' || status === 'EXPIRED') return 'Overdue';
+            return 'Not Due';
+          }
+          // Legacy object form: { PRE_OP: { tracking_status: "..." }, POST_1M: { ... } }
+          const entry = prom[timepointCode] as Record<string, unknown> | undefined;
+          if (!entry) return 'Not Due';
+          const status = String(entry.tracking_status || entry.status || '');
+          if (status === 'SUBMITTED' || status === 'COMPLETED') return 'Completed';
+          if (status === 'PENDING' || status === 'SENT' || status === 'OPENED') return 'Pending';
+          if (status === 'OVERDUE' || status === 'EXPIRED') return 'Overdue';
+          return 'Not Due';
+        };
+
+        return {
+          id: p.id, caseId: p.caseId, name: p.name, age, gender,
+          preOp: mapTimepointStatus('PRE_OP'),
+          m1: mapTimepointStatus('POST_1M'),
+          m3: mapTimepointStatus('POST_3M'),
+          m6: mapTimepointStatus('POST_6M'),
+          yr1: mapTimepointStatus('POST_1Y'),
+        };
+      }));
+      setTotal(res.total);
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : '환자 목록을 불러오는데 실패했습니다.' });
+    } finally {
+      setListLoading(false);
+    }
+  }, [token, searchId, searchName, selectedPeriod, page]);
+
+  useEffect(() => { fetchPatients(); }, [fetchPatients]);
+
+  const [recentFU, setRecentFU] = useState<{ id: string; name: string; status: string; date: string }[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    dashboardService.getRecentFollowups(token).then((data) => {
+      const statusMap: Record<string, string> = {
+        SUBMITTED: '입력 완료', COMPLETED: '입력 완료',
+        PENDING: '대기 중', SENT: '대기 중', OPENED: '대기 중',
+        OVERDUE: '지연', EXPIRED: '지연',
+      };
+      setRecentFU(data.map(fu => ({
+        id: fu.registration_no,
+        name: `${fu.patient_initial} (${fu.timepoint})`,
+        status: statusMap[fu.status] ?? fu.status,
+        date: fu.date,
+      })));
+    }).catch(() => {});
+  }, [token]);
+
+  const handleDeletePatient = (patientId: string, caseId: string) => {
+    setDeleteConfirm({ patientId, caseId });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfirm || !token) return;
+    try {
+      await patientService.delete(deleteConfirm.caseId, token);
+      setDeleteConfirm(null);
+      fetchPatients();
+    } catch (err) {
+      setDeleteConfirm(null);
+      setToast({ type: 'error', message: err instanceof Error ? err.message : '환자 삭제에 실패했습니다.' });
+    }
+  };
+
+  const handleCreatePatient = async () => {
+    const errors: Record<string, string> = {};
+    if (!newForm.name) errors['이름'] = '환자 이름을 입력해주세요.';
+    if (!newForm.birth_date) errors['생년월일'] = '생년월일을 선택해주세요.';
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      // Focus the first error field in the modal
+      setTimeout(() => {
+        const firstKey = Object.keys(errors)[0];
+        const el = document.querySelector<HTMLInputElement>(`[data-field="${firstKey}"]`);
+        el?.focus();
+      }, 0);
+      return;
+    }
+    setFormErrors({});
+    if (!token) return;
+    setCreating(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const birthYear = new Date(newForm.birth_date).getFullYear();
+      await patientService.create(
+        {
+          patient_initial: newForm.name,
+          sex: newForm.gender,
+          birth_year: birthYear,
+          birth_date: newForm.birth_date,
+          visit_date: today,
+        },
+        token
+      );
+      setShowNewPatientModal(false);
+      setNewForm({ name: "", birth_date: "", gender: "M" });
+      fetchPatients();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '환자 등록에 실패했습니다.';
+      setToast({ type: 'error', message });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const filtered = patients;
 
   return (
     <>
@@ -176,7 +361,10 @@ function PatientListTab() {
                   <td className="px-4 py-3.5"><StatusBadge status={patient.yr1} /></td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2 relative">
-                      <button className="p-1 text-gray-400 hover:text-gray-700 rounded">
+                      <button
+                        className="p-1 text-gray-400 hover:text-gray-700 rounded"
+                        onClick={() => navigate(`/surgery-entry?patient=${patient.caseId}`)}
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
@@ -190,14 +378,29 @@ function PatientListTab() {
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
                       {openActionMenu === `${patient.id}-${index}` && (
-                        <div className="absolute top-full right-0 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+                        <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
+                            onClick={() => { setOpenActionMenu(null); navigate(`/surgery-entry?patient=${patient.caseId}&mode=view`); }}
+                          >
                             상세 보기
                           </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            onClick={() => { setOpenActionMenu(null); navigate(`/surgery-entry?patient=${patient.caseId}&mode=followup`); }}
+                          >
                             F/U 입력
                           </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 rounded-b-lg">
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                            onClick={() => { setAlimtalkModal({ patientId: patient.caseId }); setOpenActionMenu(null); }}
+                          >
+                            AlimTalk 발송
+                          </button>
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 rounded-b-lg"
+                            onClick={() => { setOpenActionMenu(null); handleDeletePatient(patient.id, patient.caseId); }}
+                          >
                             삭제
                           </button>
                         </div>
@@ -217,16 +420,23 @@ function PatientListTab() {
           </table>
         </div>
         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-          <span className="text-sm text-gray-500">총 {filtered.length}명의 환자</span>
+          <span className="text-sm text-gray-500">총 {total}명의 환자</span>
           <div className="flex items-center gap-1">
-            {[1, 2, 3].map((page) => (
-              <button
-                key={page}
-                className={`w-7 h-7 rounded text-sm ${page === 1 ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
-              >
-                {page}
-              </button>
-            ))}
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="w-7 h-7 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40">‹</button>
+            {(() => {
+              const startPage = Math.max(1, Math.min(page - 2, totalPages - 4));
+              const endPage = Math.min(totalPages, startPage + 4);
+              return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-7 h-7 rounded text-sm ${p === page ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                >
+                  {p}
+                </button>
+              ));
+            })()}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="w-7 h-7 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40">›</button>
           </div>
         </div>
       </div>
@@ -252,6 +462,54 @@ function PatientListTab() {
         </div>
       </div>
 
+      {/* AlimTalk Period Modal */}
+      {alimtalkModal && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setAlimtalkModal(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base text-gray-900">AlimTalk 발송 — 팔로업 기간 선택</h2>
+              <button onClick={() => setAlimtalkModal(null)} className="p-1 text-gray-400 hover:text-gray-700 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">환자 ID: <span className="font-mono text-gray-800">{alimtalkModal.patientId}</span></p>
+            {alimtalkError && (
+              <p className="text-sm text-red-600 mb-3">{alimtalkError}</p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.entries(PERIOD_LABELS) as [FollowUpPeriodKey, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => handleSendAlimtalk(key)}
+                  disabled={sending}
+                  className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        title="환자 삭제"
+        message={deleteConfirm ? `환자 ${deleteConfirm.patientId}를 정말 삭제하시겠습니까?` : ''}
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
+
+      {/* Center Toast */}
+      <CenterToast toast={toast} onClose={() => setToast(null)} />
+
       {/* New Patient Modal */}
       {showNewPatientModal && (
         <div
@@ -266,50 +524,74 @@ function PatientListTab() {
               </button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">Patient ID</label>
-                <input type="text" placeholder="예: 202400001" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">이름 (Name)</label>
-                  <input type="text" placeholder="환자 이름" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <input
+                    type="text"
+                    data-field="이름"
+                    placeholder="환자 이름"
+                    value={newForm.name}
+                    onChange={(e) => {
+                      setNewForm((f) => ({ ...f, name: e.target.value }));
+                      setFormErrors((prev) => { const { '이름': _, ...rest } = prev; return rest; });
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors['이름'] ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'}`}
+                  />
+                  {formErrors['이름'] && <p className="text-xs text-red-500 mt-1">{formErrors['이름']}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-600 mb-1">나이 (Age)</label>
-                  <input type="number" placeholder="나이" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm text-gray-600 mb-1">생년월일 (Birth Date)</label>
+                  <input
+                    type="date"
+                    data-field="생년월일"
+                    value={newForm.birth_date}
+                    onChange={(e) => {
+                      setNewForm((f) => ({ ...f, birth_date: e.target.value }));
+                      setFormErrors((prev) => { const { '생년월일': _, ...rest } = prev; return rest; });
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors['생년월일'] ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'}`}
+                  />
+                  {formErrors['생년월일'] && <p className="text-xs text-red-500 mt-1">{formErrors['생년월일']}</p>}
                 </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">성별 (Gender)</label>
                 <div className="flex gap-3">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="gender" value="M" className="accent-blue-600" />
+                    <input
+                      type="radio" name="gender" value="M"
+                      checked={newForm.gender === "M"}
+                      onChange={() => setNewForm((f) => ({ ...f, gender: "M" }))}
+                      className="accent-blue-600"
+                    />
                     <span className="text-sm text-gray-700">남성 (M)</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="gender" value="F" className="accent-blue-600" />
+                    <input
+                      type="radio" name="gender" value="F"
+                      checked={newForm.gender === "F"}
+                      onChange={() => setNewForm((f) => ({ ...f, gender: "F" }))}
+                      className="accent-blue-600"
+                    />
                     <span className="text-sm text-gray-700">여성 (F)</span>
                   </label>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">수술일 (Surgery Date)</label>
-                <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowNewPatientModal(false)}
+                onClick={() => { setShowNewPatientModal(false); setFormErrors({}); }}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 취소
               </button>
               <button
-                onClick={() => setShowNewPatientModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
+                onClick={handleCreatePatient}
+                disabled={creating}
+                className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
               >
-                등록
+                {creating ? "등록 중…" : "등록"}
               </button>
             </div>
           </div>
@@ -321,6 +603,14 @@ function PatientListTab() {
 
 // ─── 합병증 기록 탭 ──────────────────────────────────────────────────────────
 function ComplicationTab() {
+  const { token } = useAuth();
+
+  // Patient lookup
+  const [lookupId, setLookupId] = useState("");
+  const [lookupName, setLookupName] = useState("");
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+
   const [isConversion, setIsConversion] = useState(true);
   const [isReoperation, setIsReoperation] = useState(false);
   const [conversionReason, setConversionReason] = useState("");
@@ -329,6 +619,9 @@ function ComplicationTab() {
   const [selectedSeverity, setSelectedSeverity] = useState("");
   const [occurrenceDate, setOccurrenceDate] = useState("");
   const [symptoms, setSymptoms] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const [complications, setComplications] = useState({
     duralTear: true,
@@ -346,6 +639,72 @@ function ComplicationTab() {
     setComplications((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handlePatientLookup = () => {
+    const id = lookupId.trim();
+    if (!id) {
+      setLookupMessage("Patient ID를 입력해주세요.");
+      setSelectedCaseId(null);
+      return;
+    }
+    setSelectedCaseId(id);
+    setLookupMessage(`환자 ${id} 선택됨`);
+  };
+
+  const handleResetForm = () => {
+    setLookupId("");
+    setLookupName("");
+    setSelectedCaseId(null);
+    setLookupMessage(null);
+    setIsConversion(false);
+    setIsReoperation(false);
+    setConversionReason("");
+    setReoperationDate("");
+    setSelectedSeverity("");
+    setOccurrenceDate("");
+    setSymptoms("");
+    setSaveError(null);
+    setSaveSuccess(false);
+    setComplications({
+      duralTear: false, nerveInjury: false, hematoma: false,
+      ssiSuperficial: false, ssiDeep: false, nonUnion: false,
+      instrumentBreakage: false, instrumentDisplacement: false, otherMedical: false,
+    });
+  };
+
+  const handleSaveComplication = async () => {
+    if (!selectedCaseId) {
+      setSaveError("먼저 환자를 조회해주세요.");
+      return;
+    }
+    if (!token) {
+      setSaveError("로그인이 필요합니다.");
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    try {
+      const activeComps = Object.entries(complications)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      await patientService.updateOutcomes(selectedCaseId, {
+        complications: activeComps,
+        complication_severity: selectedSeverity || undefined,
+        complication_date: occurrenceDate || undefined,
+        complication_detail: symptoms || undefined,
+        conversion_yn: isConversion,
+        conversion_reason: isConversion ? conversionReason : undefined,
+        reoperation_yn: isReoperation,
+        reoperation_date: isReoperation ? reoperationDate : undefined,
+      }, token);
+      setSaveSuccess(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const severityOptions = ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5"];
 
   return (
@@ -359,6 +718,8 @@ function ComplicationTab() {
             <input
               type="text"
               placeholder="예: 201933070"
+              value={lookupId}
+              onChange={(e) => setLookupId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -367,13 +728,21 @@ function ComplicationTab() {
             <input
               type="text"
               placeholder="환자 이름"
+              value={lookupName}
+              onChange={(e) => setLookupName(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="flex items-end">
-            <button className="px-5 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors">
+          <div className="flex items-end gap-2">
+            <button
+              onClick={handlePatientLookup}
+              className="px-5 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
+            >
               환자 조회
             </button>
+            {lookupMessage && (
+              <span className={`text-sm ${selectedCaseId ? 'text-green-600' : 'text-red-600'}`}>{lookupMessage}</span>
+            )}
           </div>
         </div>
       </div>
@@ -602,12 +971,25 @@ function ComplicationTab() {
       </div>
 
       {/* Save Buttons */}
+      {saveError && (
+        <p className="text-sm text-red-600 text-right mb-2">{saveError}</p>
+      )}
+      {saveSuccess && (
+        <p className="text-sm text-green-600 text-right mb-2">저장되었습니다.</p>
+      )}
       <div className="flex justify-end gap-3">
-        <button className="px-6 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+        <button
+          onClick={handleResetForm}
+          className="px-6 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        >
           초기화
         </button>
-        <button className="px-8 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors">
-          저장
+        <button
+          onClick={handleSaveComplication}
+          disabled={saving}
+          className="px-8 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
+        >
+          {saving ? "저장 중…" : "저장"}
         </button>
       </div>
     </div>

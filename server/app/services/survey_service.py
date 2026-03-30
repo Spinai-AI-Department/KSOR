@@ -273,7 +273,7 @@ async def get_questions(conn: AsyncConnection, claims: AccessTokenClaims) -> Sur
         raise UnauthorizedError(message="설문 본인 인증이 필요합니다.", error_code="SURVEY_NOT_VERIFIED")
     if row["expires_at"] <= datetime.now(tz=timezone.utc):
         raise UnauthorizedError(message="설문 링크가 만료되었습니다.", error_code="SURVEY_EXPIRED")
-    include_followup = row["timepoint_code"] != "PREOP"
+    include_followup = row["timepoint_code"] not in {"PREOP", "PRE_OP"}
     instrument = "NDI" if row["spinal_region"] == "CERVICAL" else "ODI"
     bank_rows = await _load_question_bank(conn, ["VAS", instrument, "EQ5D5L", "FOLLOWUP"] if include_followup else ["VAS", instrument, "EQ5D5L"])
     if bank_rows:
@@ -362,11 +362,12 @@ def _detect_instrument(question_code: str) -> str:
         return "ODI"
     if q.startswith("ndi_"):
         return "NDI"
-    if q.startswith("eq5d_") or q == "eq_vas":
+    if q.startswith("eq5d_") or q.startswith("eq_"):
         return "EQ5D5L"
-    if q.startswith("fu_"):
+    if q.startswith("fu_") or q.startswith("sat_") or q in ("global_impression", "satisfaction", "returned_to_work"):
         return "FOLLOWUP"
-    return "UNKNOWN"
+    # Fallback — treat anything else as FOLLOWUP to avoid FK violation
+    return "FOLLOWUP"
 
 
 

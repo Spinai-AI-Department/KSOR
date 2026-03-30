@@ -1,8 +1,8 @@
 import { api } from './client'
 
 export interface ReportParams {
-  date_from: string   // YYYY-MM-DD
-  date_to: string     // YYYY-MM-DD
+  date_from: string
+  date_to: string
 }
 
 export interface ReportSummary {
@@ -38,10 +38,9 @@ export const reportService = {
 
   downloadPdf: async (params: ReportParams, token: string) => {
     const query = new URLSearchParams(params).toString()
-    const res = await fetch(
-      `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'}/reports/pdf?${query}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
+    const res = await api.rawFetch(`/reports/pdf?${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
     if (!res.ok) throw new Error('PDF 다운로드에 실패했습니다.')
     return res.blob()
   },

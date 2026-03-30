@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from "react";
+import { authService } from "../api/auth";
 
 export interface User {
   id: string;
@@ -14,6 +15,7 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -23,39 +25,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Demo accounts (mutable for password changes)
-const DEMO_ACCOUNTS: { email: string; password: string; user: User }[] = [
-  {
-    email: "admin@ksor.kr",
-    password: "ksor2024",
-    user: {
-      id: "1",
-      name: "김민준",
-      role: "책임 연구원",
-      hospital: "서울대학교병원",
-      email: "admin@ksor.kr",
-      phone: "010-1234-5678",
-      specialty: "신경외과",
-      licenseNumber: "12345",
-      department: "신경외과",
-    },
-  },
-  {
-    email: "doctor@ksor.kr",
-    password: "doctor123",
-    user: {
-      id: "2",
-      name: "이수연",
-      role: "신경외과 전문의",
-      hospital: "세브란스병원",
-      email: "doctor@ksor.kr",
-      phone: "010-9876-5432",
-      specialty: "신경외과",
-      licenseNumber: "67890",
-      department: "신경외과",
-    },
-  },
-];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
@@ -67,64 +36,92 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const [token, setToken] = useState<string | null>(() =>
+    localStorage.getItem("ksor_token")
+  );
+
   const login = async (
     email: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
-    await new Promise((res) => setTimeout(res, 800));
-    const account = DEMO_ACCOUNTS.find(
-      (a) => a.email === email && a.password === password
-    );
-    if (account) {
-      setUser(account.user);
-      localStorage.setItem("ksor_user", JSON.stringify(account.user));
+    try {
+      const res = await authService.login({ login_id: email, password });
+      setUser(res.user);
+      setToken(res.access_token);
+      localStorage.setItem("ksor_user", JSON.stringify(res.user));
+      localStorage.setItem("ksor_token", res.access_token);
       return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "이메일 또는 비밀번호가 올바르지 않습니다.",
+      };
     }
-    return { success: false, error: "이메일 또는 비밀번호가 올바르지 않습니다." };
   };
 
   const logout = () => {
+    // Fire-and-forget server-side session invalidation
+    if (token) {
+      authService.logout(token).catch(() => {});
+    }
     setUser(null);
+    setToken(null);
     localStorage.removeItem("ksor_user");
+    localStorage.removeItem("ksor_token");
   };
 
   const updateUser = async (
     updates: Partial<User>
   ): Promise<{ success: boolean; error?: string }> => {
-    await new Promise((res) => setTimeout(res, 600));
     if (!user) return { success: false, error: "로그인이 필요합니다." };
 
-    const updated = { ...user, ...updates };
-    // Sync back to demo accounts
-    const account = DEMO_ACCOUNTS.find((a) => a.user.id === user.id);
-    if (account) account.user = updated;
-
-    setUser(updated);
-    localStorage.setItem("ksor_user", JSON.stringify(updated));
-    return { success: true };
+    // Call API (backend only accepts email and phone)
+    if (!token) return { success: false, error: "인증 토큰이 없습니다." };
+    try {
+      await authService.updateProfile(
+        { email: updates.email, phone: updates.phone },
+        token
+      );
+      // updateProfile returns void; fetch fresh profile from server
+      const freshUser = await authService.getMe(token);
+      setUser(freshUser);
+      localStorage.setItem("ksor_user", JSON.stringify(freshUser));
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "프로필 업데이트에 실패했습니다.",
+      };
+    }
   };
 
   const changePassword = async (
     currentPw: string,
     newPw: string
   ): Promise<{ success: boolean; error?: string }> => {
-    await new Promise((res) => setTimeout(res, 600));
     if (!user) return { success: false, error: "로그인이 필요합니다." };
-
-    const account = DEMO_ACCOUNTS.find((a) => a.user.id === user.id);
-    if (!account) return { success: false, error: "계정 정보를 찾을 수 없습니다." };
-    if (account.password !== currentPw)
-      return { success: false, error: "현재 비밀번호가 올바르지 않습니다." };
     if (newPw.length < 6)
       return { success: false, error: "새 비밀번호는 6자 이상이어야 합니다." };
 
-    account.password = newPw;
-    return { success: true };
+    // Call API
+    if (!token) return { success: false, error: "인증 토큰이 없습니다." };
+    try {
+      await authService.changePassword(
+        { current_password: currentPw, new_password: newPw, new_password_confirm: newPw },
+        token
+      );
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "비밀번호 변경에 실패했습니다.",
+      };
+    }
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, login, logout, updateUser, changePassword }}
+      value={{ user, token, isAuthenticated: !!user && !!token, login, logout, updateUser, changePassword }}
     >
       {children}
     </AuthContext.Provider>

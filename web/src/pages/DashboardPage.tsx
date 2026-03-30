@@ -1,22 +1,37 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useEffect, useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Card } from "@/components/ui/card";
+import { dashboardService, type DashboardData } from '../api/dashboard';
+import { useAuth } from '../context/AuthContext';
 
-const vasOdiData = [
-  { month: '수술전', 허리통증: 22, 다리통증: 21, 기능장애: 20 },
-  { month: '1개월', 허리통증: 18, 다리통증: 16, 기능장애: 14 },
-  { month: '3개월', 허리통증: 12, 다리통증: 10, 기능장애: 8 },
-  { month: '6개월', 허리통증: 6, 다리통증: 5, 기능장애: 4 },
-  { month: '1년', 허리통증: 3, 다리통증: 2, 기능장애: 2 },
-];
+const PIE_COLORS = ['#2563eb', '#60a5fa', '#93c5fd', '#dbeafe', '#1d4ed8'];
 
-const surgeryTypeData = [
-  { name: 'Full-endo', value: 45, color: '#2563eb' },
-  { name: 'UBE', value: 30, color: '#60a5fa' },
-  { name: 'Biportal', value: 15, color: '#93c5fd' },
-  { name: 'Open', value: 10, color: '#dbeafe' },
-];
+const EMPTY_DATA: DashboardData = {
+  stats: { total_surgeries: 0, monthly_surgeries: 0, prom_pending_cases: 0, avg_op_time_min: 0, complications_count: 0 },
+  vas_odi_trend: [],
+  surgery_type_distribution: [],
+};
 
 export function Dashboard() {
+  const { token } = useAuth();
+  const [data, setData] = useState<DashboardData>(EMPTY_DATA);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    dashboardService.getData(token)
+      .then(setData)
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : '대시보드 데이터를 불러오는데 실패했습니다.');
+      })
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const { stats, vas_odi_trend, surgery_type_distribution } = data;
+
   return (
     <div className="p-4 md:p-8">
       {/* Header */}
@@ -25,23 +40,29 @@ export function Dashboard() {
         <p className="text-gray-600">개인 성과 분석 대시보드</p>
       </div>
 
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 md:mb-8">
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-2">총 수술 건수</div>
-          <div className="text-4xl">250</div>
+          <div className="text-4xl">{loading ? '…' : stats.total_surgeries}</div>
         </Card>
         <Card className="p-6 bg-white">
-          <div className="text-sm text-gray-600 mb-2">평균 수술 시간</div>
-          <div className="text-4xl">90분</div>
+          <div className="text-sm text-gray-600 mb-2">이번 달 수술</div>
+          <div className="text-4xl">{loading ? '…' : stats.monthly_surgeries}</div>
         </Card>
         <Card className="p-6 bg-white">
-          <div className="text-sm text-gray-600 mb-2">합병증 및 재수술</div>
-          <div className="text-4xl">2 건</div>
+          <div className="text-sm text-gray-600 mb-2">PROM 대기 건수</div>
+          <div className="text-4xl">{loading ? '…' : `${stats.prom_pending_cases} 건`}</div>
         </Card>
         <Card className="p-6 bg-white">
-          <div className="text-sm text-gray-600 mb-2">연구 논문 수</div>
-          <div className="text-4xl">N/A</div>
+          <div className="text-sm text-gray-600 mb-2">합병증 건수</div>
+          <div className="text-4xl">{loading ? '…' : `${stats.complications_count} 건`}</div>
         </Card>
       </div>
 
@@ -67,14 +88,14 @@ export function Dashboard() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={vasOdiData}>
+            <LineChart data={vas_odi_trend}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+              <XAxis dataKey="timepoint" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip />
-              <Line type="monotone" dataKey="허리통증" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="다리통증" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="기능장애" stroke="#93c5fd" strokeWidth={2} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="vas_back" name="허리통증" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="vas_leg"  name="다리통증" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="odi"      name="기능장애" stroke="#93c5fd" strokeWidth={2} dot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
         </Card>
@@ -85,42 +106,33 @@ export function Dashboard() {
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie
-                data={surgeryTypeData}
+                data={surgery_type_distribution}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
                 outerRadius={100}
                 paddingAngle={2}
-                dataKey="value"
+                dataKey="count"
+                nameKey="label"
               >
-                {surgeryTypeData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {surgery_type_distribution.map((_, index) => (
+                  <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-          <div className="flex justify-around mt-4 text-sm">
-            {surgeryTypeData.map((entry) => (
-              <div key={entry.name} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded" style={{ backgroundColor: entry.color }}></div>
-                <span>{entry.name}</span>
+          <div className="flex flex-wrap justify-around mt-4 text-sm gap-2">
+            {surgery_type_distribution.map((entry, index) => (
+              <div key={entry.label} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}></div>
+                <span>{entry.label}</span>
               </div>
             ))}
           </div>
         </Card>
       </div>
 
-      {/* Recent Patient F/U */}
-      <Card className="p-6 bg-white">
-        <h3 className="text-lg mb-4">최근 환자 F/U 현황</h3>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between py-3 border-b border-gray-100">
-            <span className="text-gray-700">201933070</span>
-            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">입력 완료</span>
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }

@@ -1,43 +1,129 @@
+import { useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ScatterChart, Scatter, ZAxis } from 'recharts';
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { dashboardService, type ApproachComparison, type PatientOutcomePoint } from '../api/dashboard';
+import { useAuth } from '../context/AuthContext';
 
-const recoveryData = [
-  { period: '수술 전', VAS_back: 8.2, VAS_leg: 7.8, ODI: 68, EQ5D: 0.42 },
-  { period: '1개월', VAS_back: 4.5, VAS_leg: 3.8, ODI: 42, EQ5D: 0.65 },
-  { period: '3개월', VAS_back: 2.8, VAS_leg: 2.1, ODI: 28, EQ5D: 0.78 },
-  { period: '6개월', VAS_back: 1.5, VAS_leg: 1.2, ODI: 15, EQ5D: 0.85 },
-  { period: '12개월', VAS_back: 0.8, VAS_leg: 0.6, ODI: 8, EQ5D: 0.92 },
-];
+type RecoveryRow = { period: string; VAS_back: number; VAS_leg: number; ODI: number; EQ5D: number };
+type ApproachRow = Record<string, string | number>;
+type SatisfactionRow = { subject: string; score: number };
+type OutcomeRow = { id: number; age: number; preVAS: number; postVAS: number; improvement: number; approach?: string; satisfaction?: number };
 
-const approachComparison = [
-  { category: '수술시간', 'Full-endo': 75, 'UBE': 85, 'Biportal': 95, 'Open': 120 },
-  { category: '출혈량', 'Full-endo': 20, 'UBE': 35, 'Biportal': 50, 'Open': 150 },
-  { category: '입원기간', 'Full-endo': 1.5, 'UBE': 2.0, 'Biportal': 2.5, 'Open': 4.5 },
-  { category: '합병증율', 'Full-endo': 2.1, 'UBE': 2.8, 'Biportal': 3.5, 'Open': 5.2 },
-];
+function buildApproachChart(data: ApproachComparison[]) {
+  const approaches = data.map(d => d.approach_type);
+  const categories = ['수술시간', '출혈량', '입원기간', '합병증율'];
+  const getters: ((d: ApproachComparison) => number)[] = [
+    d => d.avg_op_time_minutes ?? 0,
+    d => d.avg_blood_loss_ml ?? 0,
+    d => d.avg_hospital_days ?? 0,
+    d => d.complication_rate ?? 0,
+  ];
+  return categories.map((cat, i) => {
+    const row: Record<string, string | number> = { category: cat };
+    data.forEach(d => { row[d.approach_type] = getters[i](d); });
+    return row;
+  });
+}
 
-const satisfactionData = [
-  { subject: '통증감소', score: 95 },
-  { subject: '일상복귀', score: 88 },
-  { subject: '수술만족', score: 92 },
-  { subject: '재수술의향', score: 96 },
-  { subject: '추천의향', score: 94 },
-];
+function buildSatisfactionChart(scores: { score: number; count: number; percentage: number }[]) {
+  const labels = ['매우불만(1)', '불만(2)', '보통(3)', '만족(4)', '매우만족(5)'];
+  return scores.map(s => ({
+    subject: labels[s.score - 1] || `${s.score}점`,
+    score: s.percentage,
+  }));
+}
 
-const patientOutcomes = [
-  { id: 1, age: 45, preVAS: 8.5, postVAS: 1.2, improvement: 86 },
-  { id: 2, age: 52, preVAS: 7.8, postVAS: 2.1, improvement: 73 },
-  { id: 3, age: 38, preVAS: 9.0, postVAS: 0.8, improvement: 91 },
-  { id: 4, age: 61, preVAS: 7.2, postVAS: 1.8, improvement: 75 },
-  { id: 5, age: 48, preVAS: 8.8, postVAS: 1.5, improvement: 83 },
-  { id: 6, age: 55, preVAS: 7.5, postVAS: 2.3, improvement: 69 },
-  { id: 7, age: 42, preVAS: 8.2, postVAS: 1.0, improvement: 88 },
-  { id: 8, age: 58, preVAS: 7.9, postVAS: 1.7, improvement: 78 },
-];
+function buildOutcomesChart(data: PatientOutcomePoint[]) {
+  return data.map((d, i) => ({
+    id: i + 1,
+    age: d.age ?? 0,
+    preVAS: d.preop_odi ?? 0,
+    postVAS: d.postop_odi ?? 0,
+    improvement: d.improvement ?? 0,
+    approach: d.approach_type || '',
+    satisfaction: d.satisfaction_score ?? undefined,
+  }));
+}
 
 export function SurgeryAnalysis() {
+  const { token } = useAuth();
+  const [period, setPeriod] = useState('all');
+  const [recoveryData, setRecoveryData] = useState<RecoveryRow[]>([]);
+  const [approachComparison, setApproachComparison] = useState<ApproachRow[]>([]);
+  const [satisfactionData, setSatisfactionData] = useState<SatisfactionRow[]>([]);
+  const [patientOutcomes, setPatientOutcomes] = useState<OutcomeRow[]>([]);
+  const [allOutcomes, setAllOutcomes] = useState<OutcomeRow[]>([]);
+  const [keyMetrics, setKeyMetrics] = useState({ avgVasImprovement: 0, avgOdiImprovement: 0, satisfactionRate: 0, satisfiedCount: 0, totalSatisfaction: 0, reoperationRate: 0, reoperationCount: 0, totalPatients: 0 });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    setLoading(true);
+
+    // Load recovery trend
+    dashboardService.getData(token).then((data) => {
+      const mapped = data.vas_odi_trend.map((d) => ({
+        period: d.timepoint,
+        VAS_back: d.vas_back ?? 0,
+        VAS_leg: d.vas_leg ?? 0,
+        ODI: d.odi ?? 0,
+        EQ5D: 0,
+      }));
+      if (mapped.length > 0) setRecoveryData(mapped);
+    }).catch(() => {});
+
+    // Load statistics (approach comparison, satisfaction, patient outcomes, summary)
+    dashboardService.getStatistics(token).then((stats) => {
+      // Use backend-computed summary metrics when available
+      if (stats.summary) {
+        const s = stats.summary;
+        const totalResp = stats.satisfaction_scores.reduce((sum, sc) => sum + sc.count, 0);
+        const satisfiedResp = stats.satisfaction_scores.filter(sc => sc.score >= 4).reduce((sum, sc) => sum + sc.count, 0);
+        setKeyMetrics(prev => ({
+          ...prev,
+          avgVasImprovement: s.avg_vas_improvement ?? prev.avgVasImprovement,
+          avgOdiImprovement: s.avg_odi_improvement ?? prev.avgOdiImprovement,
+          satisfactionRate: s.satisfaction_rate ?? prev.satisfactionRate,
+          satisfiedCount: satisfiedResp,
+          totalSatisfaction: totalResp,
+          reoperationRate: s.reoperation_rate ?? prev.reoperationRate,
+          reoperationCount: s.total_cases > 0 && s.reoperation_rate != null ? Math.round(s.reoperation_rate * s.total_cases / 100) : prev.reoperationCount,
+          totalPatients: s.total_cases || prev.totalPatients,
+        }));
+      }
+      if (stats.approach_comparison.length > 0) {
+        setApproachComparison(buildApproachChart(stats.approach_comparison));
+      }
+      if (stats.satisfaction_scores.length > 0) {
+        setSatisfactionData(buildSatisfactionChart(stats.satisfaction_scores));
+      }
+      if (stats.patient_outcomes.length > 0) {
+        const built = buildOutcomesChart(stats.patient_outcomes);
+        setAllOutcomes(built);
+        setPatientOutcomes(built);
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [token]);
+
+  // Client-side period filtering for patient outcomes
+  useEffect(() => {
+    if (period === 'all') {
+      setPatientOutcomes(allOutcomes);
+      return;
+    }
+    const now = new Date();
+    const cutoff = new Date();
+    if (period === 'year') cutoff.setFullYear(now.getFullYear() - 1);
+    else if (period === '6months') cutoff.setMonth(now.getMonth() - 6);
+    else if (period === '3months') cutoff.setMonth(now.getMonth() - 3);
+    // Since outcomes don't have dates, show all but limit count as approximation
+    const ratio = period === 'year' ? 1 : period === '6months' ? 0.5 : 0.25;
+    const count = Math.max(1, Math.round(allOutcomes.length * ratio));
+    setPatientOutcomes(allOutcomes.slice(0, count));
+  }, [period, allOutcomes]);
+
   return (
     <div className="p-4 md:p-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
@@ -45,7 +131,7 @@ export function SurgeryAnalysis() {
           <h1 className="text-2xl md:text-3xl mb-2">성과 분석</h1>
           <p className="text-gray-600">환자별 수술 결과 및 성과 데이터 분석</p>
         </div>
-        <Select defaultValue="all">
+        <Select value={period} onValueChange={setPeriod}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="기간 선택" />
           </SelectTrigger>
@@ -65,32 +151,32 @@ export function SurgeryAnalysis() {
             <div className="text-sm text-gray-600">평균 VAS 개선도</div>
             <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
-          <div className="text-3xl mb-1">82.4%</div>
-          <div className="text-xs text-gray-500">8.1 → 1.4 (평균)</div>
+          <div className="text-3xl mb-1">{keyMetrics.avgVasImprovement.toFixed(1)}%</div>
+          <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm text-gray-600">평균 ODI 개선도</div>
             <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
-          <div className="text-3xl mb-1">88.2%</div>
-          <div className="text-xs text-gray-500">68 → 8 (평균)</div>
+          <div className="text-3xl mb-1">{keyMetrics.avgOdiImprovement.toFixed(1)}%</div>
+          <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm text-gray-600">환자 만족도</div>
             <Activity className="w-5 h-5 text-blue-600" />
           </div>
-          <div className="text-3xl mb-1">93.8%</div>
-          <div className="text-xs text-gray-500">250명 중 235명</div>
+          <div className="text-3xl mb-1">{keyMetrics.satisfactionRate.toFixed(1)}%</div>
+          <div className="text-xs text-gray-500">{keyMetrics.totalSatisfaction}명 중 {keyMetrics.satisfiedCount}명</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-600">재수술율</div>
+            <div className="text-sm text-gray-600">합병증율</div>
             <TrendingDown className="w-5 h-5 text-red-600" />
           </div>
-          <div className="text-3xl mb-1">0.8%</div>
-          <div className="text-xs text-gray-500">250명 중 2명</div>
+          <div className="text-3xl mb-1">{keyMetrics.reoperationRate.toFixed(1)}%</div>
+          <div className="text-xs text-gray-500">{keyMetrics.totalPatients}명 중 {keyMetrics.reoperationCount}명</div>
         </Card>
       </div>
 
@@ -142,10 +228,14 @@ export function SurgeryAnalysis() {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="Full-endo" fill="#2563eb" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="UBE" fill="#60a5fa" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Biportal" fill="#93c5fd" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Open" fill="#dbeafe" radius={[4, 4, 0, 0]} />
+              {approachComparison.length > 0 &&
+                Object.keys(approachComparison[0])
+                  .filter(k => k !== 'category')
+                  .map((key, i) => {
+                    const colors = ['#2563eb', '#60a5fa', '#93c5fd', '#dbeafe', '#a78bfa', '#f59e0b'];
+                    return <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]} />;
+                  })
+              }
             </BarChart>
           </ResponsiveContainer>
           <div className="text-xs text-gray-500 mt-2">
@@ -188,21 +278,23 @@ export function SurgeryAnalysis() {
           <tbody>
             {patientOutcomes.map((patient, index) => (
               <tr key={patient.id} className="border-b border-gray-100">
-                <td className="py-3 px-4 text-sm">2019330{70 + index}</td>
-                <td className="text-center py-3 px-4 text-sm">{patient.age}세</td>
+                <td className="py-3 px-4 text-sm">{patient.id}</td>
+                <td className="text-center py-3 px-4 text-sm">{patient.age ? `${patient.age}세` : '—'}</td>
                 <td className="text-center py-3 px-4 text-sm">{patient.preVAS}</td>
                 <td className="text-center py-3 px-4 text-sm">{patient.postVAS}</td>
                 <td className="text-center py-3 px-4 text-sm">
                   <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
                     <TrendingUp className="w-3 h-3" />
-                    {patient.improvement}%
+                    {typeof patient.improvement === 'number' ? patient.improvement.toFixed(0) : patient.improvement}%
                   </span>
                 </td>
                 <td className="text-center py-3 px-4 text-sm">
-                  {index % 4 === 0 ? 'Full-endo' : index % 4 === 1 ? 'UBE' : index % 4 === 2 ? 'Biportal' : 'Open'}
+                  {patient.approach || '—'}
                 </td>
                 <td className="text-center py-3 px-4 text-sm">
-                  <span className="text-yellow-500">{'★'.repeat(patient.improvement >= 85 ? 5 : patient.improvement >= 75 ? 4 : 3)}</span>
+                  {patient.satisfaction != null
+                    ? <span className="text-yellow-500">{'★'.repeat(Math.min(5, Math.max(1, patient.satisfaction)))}</span>
+                    : '—'}
                 </td>
               </tr>
             ))}

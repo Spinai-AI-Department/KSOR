@@ -1,11 +1,33 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from enum import Enum
+from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.models.common import APIModel, PaginationMeta
+
+
+class TimepointCode(str, Enum):
+    PRE_OP = "PRE_OP"
+    POST_1M = "POST_1M"
+    POST_3M = "POST_3M"
+    POST_6M = "POST_6M"
+    POST_1Y = "POST_1Y"
+    PREOP = "PREOP"
+    POSTOP_1M = "POSTOP_1M"
+    POSTOP_3M = "POSTOP_3M"
+    POSTOP_6M = "POSTOP_6M"
+    POSTOP_12M = "POSTOP_12M"
+    POSTOP_24M = "POSTOP_24M"
+
+
+class MemoVisibility(str, Enum):
+    PRIVATE = "PRIVATE"
+    HOSPITAL = "HOSPITAL"
+    ADMIN = "ADMIN"
 
 
 class PatientCreateRequest(APIModel):
@@ -68,7 +90,7 @@ class OutcomeUpdateRequest(APIModel):
 
 
 class MemoUpdateRequest(APIModel):
-    visibility: str = "PRIVATE"
+    visibility: MemoVisibility = MemoVisibility.PRIVATE
     memo_text: str = Field(min_length=1)
 
 
@@ -78,7 +100,7 @@ class LockRequest(APIModel):
 
 
 class PromSendRequest(APIModel):
-    timepoint_code: str
+    timepoint_code: TimepointCode
     expires_in_days: int | None = Field(default=None, ge=1, le=30)
     remarks: str | None = None
 

@@ -18,16 +18,16 @@ async def set_app_context(conn, request: Request) -> None:
     request_id = str(ctx.request_id) if ctx else None
     client_ip = ctx.normalized_ip() if ctx else None
 
+    stmt_timeout = int(request.app.state.settings.db_statement_timeout_ms)
+    idle_timeout = int(request.app.state.settings.db_idle_in_transaction_timeout_ms)
+
     async with conn.cursor() as cur:
         await cur.execute(
             "SELECT app_private.set_context(%s, %s, %s, %s, %s, true)",
             (user_id, hospital_code, role, request_id, client_ip),
         )
-        await cur.execute("SET LOCAL statement_timeout = %s", (str(request.app.state.settings.db_statement_timeout_ms),))
-        await cur.execute(
-            "SET LOCAL idle_in_transaction_session_timeout = %s",
-            (str(request.app.state.settings.db_idle_in_transaction_timeout_ms),),
-        )
+        await cur.execute(f"SET LOCAL statement_timeout = {stmt_timeout}")
+        await cur.execute(f"SET LOCAL idle_in_transaction_session_timeout = {idle_timeout}")
 
 
 async def clear_app_context(conn) -> None:

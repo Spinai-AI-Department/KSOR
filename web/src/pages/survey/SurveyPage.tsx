@@ -1,26 +1,81 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
+import { surveyService } from '../../api/survey';
 import { Logo } from '@/components/survey/Logo';
 import { MobileFrame } from '@/components/survey/MobileFrame';
 import { ProgressBar } from '@/components/survey/ProgressBar';
 import { VASSlider } from '@/components/survey/VASSlider';
 import { ChoiceCard } from '@/components/survey/ChoiceCard';
-import { surveyQuestions, VASQuestion, ChoiceQuestion } from '@/utils/surveyQuestions';
+import { surveyQuestions as staticQuestions, type Question, type VASQuestion, type ChoiceQuestion } from '@/utils/surveyQuestions';
 
 type VASAnswer = { [sliderId: string]: number };
 type ChoiceAnswer = number;
 type Answer = VASAnswer | ChoiceAnswer;
 type Answers = { [questionId: number]: Answer };
 
-const TOTAL = surveyQuestions.length;
-
 export default function SurveyQuestionsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tokenUuid = searchParams.get('token') ?? '';
+  const surveyToken = searchParams.get('jwt') ?? '';
+
+  const [questions, setQuestions] = useState<Question[]>(staticQuestions);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Answers>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
 
-  const question = surveyQuestions[currentIndex];
+  // Fetch questions from API if token is available, fall back to static
+  useEffect(() => {
+    if (!tokenUuid || !surveyToken) return;
+    setQuestionsLoading(true);
+    surveyService.getQuestions(tokenUuid, surveyToken)
+      .then((res) => {
+        if (res.questions && res.questions.length > 0) {
+          const mapped: Question[] = res.questions.map((q, idx) => {
+            if (q.ui_type === 'vas' || q.ui_type === 'slider') {
+              return {
+                type: 'vas' as const,
+                id: idx + 1,
+                section: q.category,
+                sliders: [{ id: q.question_code, label: q.title }],
+              };
+            }
+            return {
+              type: 'choice' as const,
+              id: idx + 1,
+              section: q.category,
+              title: q.instrument_code,
+              question: q.title,
+              options: (q.options ?? []).map(o => ({
+                value: typeof o.value === 'number' ? o.value : parseInt(String(o.value), 10) || 0,
+                title: o.label,
+                desc: '',
+              })),
+            };
+          });
+          setQuestions(mapped);
+        }
+      })
+      .catch(() => {
+        // Keep static questions as fallback
+      })
+      .finally(() => setQuestionsLoading(false));
+  }, [tokenUuid, surveyToken]);
+
+  const TOTAL = questions.length;
+  const question = questions[currentIndex];
   const questionNum = currentIndex + 1;
+
+  if (questionsLoading) {
+    return (
+      <MobileFrame>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px' }}>
+          <p style={{ color: '#6b7280', fontSize: '14px' }}>설문을 불러오는 중...</p>
+        </div>
+      </MobileFrame>
+    );
+  }
 
   function getVASAnswer(qId: number, sliderId: string): number {
     const ans = answers[qId];
@@ -55,11 +110,22 @@ export default function SurveyQuestionsPage() {
     }
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (currentIndex < TOTAL - 1) {
       setCurrentIndex((i) => i + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      // Last question — submit to API if tokenUuid and surveyToken (JWT) present
+      if (tokenUuid && surveyToken) {
+        setSubmitting(true);
+        try {
+          await surveyService.submit(tokenUuid, answers, surveyToken);
+        } catch {
+          // navigate to complete even on error — don't block the patient
+        } finally {
+          setSubmitting(false);
+        }
+      }
       navigate('/patient-survey/complete', { state: { answers } });
     }
   }
@@ -69,7 +135,7 @@ export default function SurveyQuestionsPage() {
       setCurrentIndex((i) => i - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      navigate('/patient-survey');
+      navigate(tokenUuid ? `/patient-survey/?token=${tokenUuid}` : '/patient-survey');
     }
   }
 
@@ -226,7 +292,7 @@ export default function SurveyQuestionsPage() {
         </button>
         <button
           onClick={handleNext}
-          disabled={!canProceed()}
+          disabled={!canProceed() || submitting}
           style={{
             flex: 2,
             padding: '14px',
@@ -241,7 +307,7 @@ export default function SurveyQuestionsPage() {
             boxShadow: canProceed() ? '0 2px 8px rgba(59, 130, 246, 0.35)' : 'none',
           }}
         >
-          {currentIndex === TOTAL - 1 ? '제출하기' : '다음'}
+          {submitting ? '제출 중…' : currentIndex === TOTAL - 1 ? '제출하기' : '다음'}
         </button>
       </div>
     </MobileFrame>

@@ -9,6 +9,8 @@ from fastapi.responses import ORJSONResponse
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 
+import psycopg.errors
+
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.exceptions import AppError
@@ -68,6 +70,60 @@ async def app_error_handler(request: Request, exc: AppError):
             "error_code": exc.error_code,
             "message": exc.message,
             "data": exc.data,
+        },
+    )
+
+
+@app.exception_handler(psycopg.errors.ForeignKeyViolation)
+async def fk_violation_handler(request: Request, exc: psycopg.errors.ForeignKeyViolation):
+    detail = str(exc).split("DETAIL:  ")[-1].split("\n")[0] if "DETAIL:" in str(exc) else str(exc)
+    return ORJSONResponse(
+        status_code=400,
+        content={
+            "status": "error",
+            "error_code": "FOREIGN_KEY_VIOLATION",
+            "message": f"참조 데이터가 존재하지 않습니다: {detail}",
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(psycopg.errors.UniqueViolation)
+async def unique_violation_handler(request: Request, exc: psycopg.errors.UniqueViolation):
+    detail = str(exc).split("DETAIL:  ")[-1].split("\n")[0] if "DETAIL:" in str(exc) else str(exc)
+    return ORJSONResponse(
+        status_code=409,
+        content={
+            "status": "error",
+            "error_code": "DUPLICATE_ENTRY",
+            "message": f"이미 존재하는 데이터입니다: {detail}",
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(psycopg.errors.CheckViolation)
+async def check_violation_handler(request: Request, exc: psycopg.errors.CheckViolation):
+    return ORJSONResponse(
+        status_code=400,
+        content={
+            "status": "error",
+            "error_code": "CHECK_VIOLATION",
+            "message": f"데이터 제약 조건 위반: {exc}",
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(psycopg.errors.RaiseException)
+async def raise_exception_handler(request: Request, exc: psycopg.errors.RaiseException):
+    return ORJSONResponse(
+        status_code=400,
+        content={
+            "status": "error",
+            "error_code": "DB_RULE_VIOLATION",
+            "message": str(exc).split("\n")[0],
+            "data": None,
         },
     )
 

@@ -1,5 +1,10 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { surgeryService } from "../api/surgery";
+import { patientService } from "../api/patients";
+import { useAuth } from "../context/AuthContext";
+import { CenterToast, type ToastData } from "@/components/ui/toast-modal";
 
 const devices = ["Joimax", "RIWOspine", "Stryker", "Endovision"];
 
@@ -85,6 +90,8 @@ function FieldLabel({
 // ── Shared primitives ─────────────────────────────────────────────────────────
 const inputCls =
   "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+const inputClsDisabled =
+  "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-100 text-gray-500 cursor-not-allowed";
 const sectionCls = "bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-5";
 
 function RadioGroup({
@@ -154,6 +161,11 @@ function Dropdown({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export function SurgeryDataEntry() {
+  const { token } = useAuth();
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get('mode') ?? '';
+  const isViewMode = mode === 'view';
+  const isFollowupMode = mode === 'followup';
   // Endoscopic
   const [selectedApproach, setSelectedApproach] = useState<Approach>("UBE");
   const [selectedTechnique, setSelectedTechnique] = useState("interlaminar");
@@ -173,7 +185,7 @@ export function SurgeryDataEntry() {
   const [conversion, setConversion] = useState<"yes" | "no" | "">("");
 
   // Demographics
-  const [patientId, setPatientId] = useState("");
+  const [patientId, setPatientId] = useState(() => searchParams.get('patient') ?? '');
   const [surgeryDate, setSurgeryDate] = useState("");
   const [surgeon, setSurgeon] = useState("");
   const [asaClass, setAsaClass] = useState("");
@@ -214,6 +226,10 @@ export function SurgeryDataEntry() {
   // Follow-up
   const [followupTimepoints, setFollowupTimepoints] = useState<string[]>([]);
 
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+
   const toggleImplant = (key: keyof typeof implants) => {
     if (key === "none") {
       setImplants({ cage: false, screws: false, none: !implants.none });
@@ -222,26 +238,121 @@ export function SurgeryDataEntry() {
     }
   };
 
+  const handleSubmit = async () => {
+    if (!token) {
+      setToast({ type: 'error', title: '인증 오류', message: '로그인이 필요합니다.' });
+      return;
+    }
+
+    // Field-level validation
+    const errors: Record<string, string> = {};
+    const errorFlags: Record<string, boolean> = {};
+    if (!patientId) {
+      errors['환자 ID'] = '환자 ID를 입력해주세요.';
+      errorFlags['patientId'] = true;
+    }
+    if (!surgeryDate) {
+      errors['수술일'] = '수술일을 입력해주세요.';
+      errorFlags['surgeryDate'] = true;
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errorFlags);
+      // Scroll to and focus the first error field
+      setTimeout(() => {
+        const firstField = Object.keys(errorFlags)[0];
+        const el = document.querySelector<HTMLInputElement>(`[data-field="${firstField}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus();
+        }
+      }, 0);
+      return;
+    }
+
+    setFieldErrors({});
+    setSubmitting(true);
+    try {
+      // Build comorbidities list
+      const comorbidities: string[] = [];
+      if (diabetes === 'yes') comorbidities.push('DIABETES');
+      if (cardiovascular === 'yes') comorbidities.push('CARDIOVASCULAR');
+      if (neurological === 'yes') comorbidities.push('NEUROLOGICAL');
+      if (depressionAnxiety === 'yes') comorbidities.push('DEPRESSION_ANXIETY');
+      if (prevSpineSurgery === 'yes') comorbidities.push('PREV_SPINE_SURGERY');
+
+      // Update clinical data for the case (patientId is used as caseId here)
+      await surgeryService.updateClinical(patientId, {
+        surgery_date: surgeryDate || undefined,
+        diagnosis_code: diagnosis || undefined,
+        surgery_level: opLevel || undefined,
+        operation_minutes: Number(opTime) || undefined,
+        estimated_blood_loss_ml: Number(bloodLoss) || undefined,
+        hospital_stay_days: Number(hospitalDays) || undefined,
+        approach_type: selectedApproach || undefined,
+        laterality: selectedLaterality || undefined,
+        implant_used_yn: implants.cage || implants.screws,
+        comorbidities: comorbidities.length > 0 ? comorbidities : undefined,
+        procedure_code: selectedProcedure || undefined,
+        anesthesia_type: undefined,
+      }, token);
+
+      // Submit outcomes if any complications data exists
+      if (intraoopComp !== '' || reoperation !== '' || readmission30 !== '') {
+        await patientService.updateOutcomes(patientId, {
+          complication_yn: intraoopComp === 'yes',
+          complication_detail: compType || undefined,
+          reoperation_yn: reoperation === 'yes',
+          readmission_30d_yn: readmission30 === 'yes',
+        }, token);
+      }
+
+      setToast({ type: 'success', title: '저장 완료', message: '수술 정보가 성공적으로 저장되었습니다.' });
+    } catch (err) {
+      setToast({ type: 'error', title: '저장 실패', message: err instanceof Error ? err.message : '저장에 실패했습니다.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <div className="p-4 md:p-8 min-h-screen bg-gray-50">
+    <div className={`p-4 md:p-8 min-h-screen bg-gray-50 ${isViewMode ? 'pointer-events-none opacity-90' : ''}`} style={isViewMode ? { pointerEvents: 'auto' } : undefined}>
       {/* Header */}
       <div className="mb-6 md:mb-8">
-        <h1 className="text-xl md:text-2xl text-gray-900">KSOR 수술 정보 입력</h1>
-        <p className="text-gray-500 mt-1">Korean Spine Outcomes Registry — Surgery Data Entry</p>
+        <h1 className="text-xl md:text-2xl text-gray-900">
+          {isViewMode ? 'KSOR 수술 정보 조회' : isFollowupMode ? 'KSOR F/U 입력' : 'KSOR 수술 정보 입력'}
+        </h1>
+        <p className="text-gray-500 mt-1">
+          {isViewMode ? 'Korean Spine Outcomes Registry — View Only' : isFollowupMode ? 'Korean Spine Outcomes Registry — Follow-up Entry' : 'Korean Spine Outcomes Registry — Surgery Data Entry'}
+        </p>
+        {isViewMode && (
+          <div className="mt-2 inline-block px-3 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-medium">읽기 전용</div>
+        )}
+        {isFollowupMode && (
+          <div className="mt-2 inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">팔로업 입력 모드</div>
+        )}
       </div>
 
+      <fieldset disabled={isViewMode} style={{ border: 'none', padding: 0, margin: 0 }}>
       {/* ── Demographics ── */}
       <div className={sectionCls}>
         <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">Demographics</p>
         <h2 className="text-base text-gray-900 mb-5">환자 기본 정보</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <FieldLabel label="Patient ID" />
-            <input type="text" value={patientId} onChange={(e) => setPatientId(e.target.value)} placeholder="예: 201933070" className={inputCls} />
+            <FieldLabel label={searchParams.get('patient') ? "Case ID (auto-filled)" : "Patient ID"} />
+            {searchParams.get('patient') ? (
+              <input type="text" value={patientId} readOnly className={`${inputCls} bg-gray-50 text-gray-500 cursor-not-allowed`} />
+            ) : (
+              <>
+                <input type="text" data-field="patientId" value={patientId} onChange={(e) => { setPatientId(e.target.value); setFieldErrors((prev) => ({ ...prev, patientId: false })); }} placeholder="예: 201933070" className={`${inputCls} ${fieldErrors['patientId'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+                {fieldErrors['patientId'] && <p className="text-xs text-red-500 mt-1">환자 ID를 입력해주세요.</p>}
+              </>
+            )}
           </div>
           <div>
             <FieldLabel label="수술일 (Surgery Date)" ksor="Core" />
-            <input type="date" value={surgeryDate} onChange={(e) => setSurgeryDate(e.target.value)} className={inputCls} />
+            <input type="date" data-field="surgeryDate" value={surgeryDate} onChange={(e) => { setSurgeryDate(e.target.value); setFieldErrors((prev) => ({ ...prev, surgeryDate: false })); }} className={`${inputCls} ${fieldErrors['surgeryDate'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['surgeryDate'] && <p className="text-xs text-red-500 mt-1">수술일을 입력해주세요.</p>}
           </div>
           <div>
             <FieldLabel label="집도의 (Surgeon)" />
@@ -622,15 +733,43 @@ export function SurgeryDataEntry() {
         </div>
       </div>
 
+      </fieldset>
+
+      <CenterToast toast={toast} onClose={() => setToast(null)} />
+
       {/* Save Button */}
-      <div className="flex justify-end gap-3">
-        <button className="px-6 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-          임시 저장
-        </button>
-        <button className="px-8 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors">
-          저장
-        </button>
-      </div>
+      {!isViewMode && (
+        <>
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => {
+                const draftData = {
+                  patientId, surgeryDate, surgeon, asaClass, diagnosis, diagnosisLevel,
+                  myelopathy, selectedApproach, selectedTechnique, selectedLaterality,
+                  selectedDevice, scopeAngle, vizQuality, selectedProcedure, opLevel,
+                  numLevels, opTime, bloodLoss, hospitalDays, surgeonExp,
+                  antibioticProphylaxis, implants, conversion, diabetes, cardiovascular,
+                  neurological, depressionAnxiety, prevSpineSurgery, intraoopComp,
+                  compType, reoperation, reoperationReason, readmission30, cci,
+                  followupTimepoints,
+                };
+                localStorage.setItem('ksor_surgery_draft', JSON.stringify(draftData));
+                setToast({ type: 'success', title: '임시 저장', message: '임시 저장되었습니다.' });
+              }}
+              className="px-6 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              임시 저장
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="px-8 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              {submitting ? "저장 중…" : "저장"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

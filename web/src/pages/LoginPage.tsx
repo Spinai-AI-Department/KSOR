@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { CenterToast, type ToastData } from "@/components/ui/toast-modal";
 import logoImage from "@/assets/logo.png";
 
 export function LoginPage() {
@@ -12,34 +13,31 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError("이메일과 비밀번호를 입력해주세요.");
+    const errors: Record<string, string> = {};
+    if (!email) errors['이메일'] = '이메일을 입력해주세요.';
+    if (!password) errors['비밀번호'] = '비밀번호를 입력해주세요.';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      // Focus the first error field
+      const firstKey = Object.keys(errors)[0];
+      const el = document.querySelector<HTMLInputElement>(`[data-field="${firstKey}"]`);
+      el?.focus();
       return;
     }
-    setError("");
+    setFieldErrors({});
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
     if (result.success) {
       navigate("/");
     } else {
-      setError(result.error ?? "로그인에 실패했습니다.");
+      setToast({ type: 'error', message: result.error ?? "로그인에 실패했습니다." });
     }
-  };
-
-  const fillDemo = (type: "admin" | "doctor") => {
-    if (type === "admin") {
-      setEmail("admin@ksor.kr");
-      setPassword("ksor2024");
-    } else {
-      setEmail("doctor@ksor.kr");
-      setPassword("doctor123");
-    }
-    setError("");
   };
 
   return (
@@ -107,12 +105,14 @@ export function LoginPage() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="email"
+                  data-field="이메일"
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                  onChange={(e) => { setEmail(e.target.value); setFieldErrors((prev) => { const { '이메일': _, ...rest } = prev; return rest; }); }}
                   placeholder="example@ksor.kr"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className={`w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${fieldErrors['이메일'] ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'}`}
                 />
               </div>
+              {fieldErrors['이메일'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['이메일']}</p>}
             </div>
 
             {/* Password */}
@@ -122,10 +122,11 @@ export function LoginPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type={showPassword ? "text" : "password"}
+                  data-field="비밀번호"
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                  onChange={(e) => { setPassword(e.target.value); setFieldErrors((prev) => { const { '비밀번호': _, ...rest } = prev; return rest; }); }}
                   placeholder="비밀번호를 입력하세요"
-                  className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className={`w-full pl-10 pr-10 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${fieldErrors['비밀번호'] ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'}`}
                 />
                 <button
                   type="button"
@@ -135,15 +136,8 @@ export function LoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {fieldErrors['비밀번호'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['비밀번호']}</p>}
             </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                <span className="text-sm text-red-600">{error}</span>
-              </div>
-            )}
 
             {/* Submit */}
             <button
@@ -165,26 +159,10 @@ export function LoginPage() {
             </button>
           </form>
 
-          {/* Demo Accounts */}
-          <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-            <p className="text-xs text-gray-500 mb-3">데모 계정으로 빠르게 접속하기</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => fillDemo("admin")}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors"
-              >
-                책임 연구원
-              </button>
-              <button
-                onClick={() => fillDemo("doctor")}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors"
-              >
-                신경외과 전문의
-              </button>
-            </div>
-          </div>
         </div>
       </div>
+
+      <CenterToast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

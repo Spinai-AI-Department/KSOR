@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -30,6 +30,26 @@ def _normalize_case_path_param(case_id_or_patient_id: str | UUID) -> str:
     return str(case_id_or_patient_id)
 
 
+def _serialize_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Convert UUID, date, datetime, Decimal values to JSON-safe types."""
+    if row is None:
+        return None
+    from decimal import Decimal
+    result = {}
+    for k, v in row.items():
+        if isinstance(v, UUID):
+            result[k] = str(v)
+        elif isinstance(v, datetime):
+            result[k] = v.isoformat()
+        elif isinstance(v, date):
+            result[k] = v.isoformat()
+        elif isinstance(v, Decimal):
+            result[k] = float(v)
+        else:
+            result[k] = v
+    return result
+
+
 async def list_cases(
     conn: AsyncConnection,
     *,
@@ -40,7 +60,7 @@ async def list_cases(
     diagnosis_code: str | None = None,
     status_filter: str | None = None,
 ) -> PatientListResponse:
-    filters = ["1=1"]
+    filters = ["case_status != 'ARCHIVED'"]
     params: list[Any] = []
     if keyword:
         filters.append("(registration_no ILIKE %s OR patient_initial ILIKE %s)")
@@ -96,6 +116,29 @@ async def list_cases(
         """,
         [*params, size, offset],
     )
+
+    # Fetch per-timepoint PROM status for all cases in this page
+    case_ids = [row["case_id"] for row in rows] if rows else []
+    prom_by_case: dict[Any, dict[str, str]] = {}
+    if case_ids:
+        prom_rows = await fetch_all(
+            conn,
+            """
+            SELECT
+                pr.case_id,
+                pr.timepoint_code,
+                pr.token_status::text AS token_status
+            FROM survey.prom_request pr
+            WHERE pr.case_id = ANY(%s)
+            """,
+            (case_ids,),
+        )
+        for pr in (prom_rows or []):
+            cid = pr["case_id"]
+            tp = pr["timepoint_code"]
+            status = pr["token_status"]
+            prom_by_case.setdefault(cid, {})[tp] = status
+
     items: list[PatientListItem] = []
     no = total - offset
     for row in rows:
@@ -104,6 +147,23 @@ async def list_cases(
             base_year = row["visit_date"].year if row["visit_date"] else datetime.now().year
             age = max(base_year - int(row["birth_year"]), 0)
         gender_age = f"{row['sex']} / {age if age is not None else '-'}"
+
+        # Build per-timepoint follow-up status
+        case_prom = prom_by_case.get(row["case_id"], {})
+        followup_status: dict[str, str] = {}
+        for tp_code in ("PRE_OP", "POST_1M", "POST_3M", "POST_6M", "POST_1Y"):
+            token_status = case_prom.get(tp_code)
+            if token_status is None:
+                followup_status[tp_code] = "NOT_REQUESTED"
+            elif token_status in ("COMPLETED", "SUBMITTED"):
+                followup_status[tp_code] = "COMPLETED"
+            elif token_status in ("READY", "SENT", "OPENED", "VERIFIED"):
+                followup_status[tp_code] = "PENDING"
+            elif token_status == "EXPIRED":
+                followup_status[tp_code] = "OVERDUE"
+            else:
+                followup_status[tp_code] = token_status
+
         items.append(
             PatientListItem(
                 patient_id=row["patient_id"],
@@ -126,6 +186,7 @@ async def list_cases(
                 prom_alimtalk={
                     "last_sent_at": row["latest_prom_sent_at"],
                     "prom_status": row["latest_prom_status"] or "WAITING",
+                    "followup_status": followup_status,
                 },
             )
         )
@@ -182,7 +243,8 @@ async def create_patient_case(conn: AsyncConnection, actor_user_id: UUID, payloa
             crypto.phone_hash(payload.phone),
             crypto.phone_last4_hash(payload.phone),
             crypto.encrypt_text(payload.birth_date.isoformat() if payload.birth_date else None),
-            crypto.birth_ymd_hash(payload.birth_date.isoformat() if payload.birth_date else None),
+            crypto.birth_ymd_hash(payload.birth_date.isoformat() if payload.birth_date else None)
+            or (crypto.sha256_hex(str(payload.birth_year)) if payload.birth_year else None),
             str(actor_user_id),
             str(actor_user_id),
         ),
@@ -239,6 +301,136 @@ async def _ensure_case_exists(conn: AsyncConnection, case_id: str) -> dict[str, 
     return row
 
 
+async def get_case_detail(conn: AsyncConnection, case_id: UUID) -> dict[str, Any]:
+    """Get full patient/case detail including clinical, outcomes, and memos."""
+    case_row = await _ensure_case_exists(conn, str(case_id))
+
+    # Base case + patient info
+    detail = await fetch_one(
+        conn,
+        """
+        SELECT
+            cr.case_id,
+            cr.hospital_code,
+            cr.patient_id,
+            cr.registration_no,
+            p.patient_initial,
+            p.sex::text AS sex,
+            p.birth_year,
+            cr.consent_date,
+            cr.visit_date,
+            cr.surgery_date,
+            cr.diagnosis_code,
+            cr.procedure_code,
+            cr.spinal_region::text AS spinal_region,
+            cr.case_status::text AS case_status,
+            cr.is_locked,
+            cr.enrollment_source,
+            cr.created_at,
+            cr.updated_at
+        FROM clinical.case_record cr
+        JOIN patient.patient p ON p.patient_id = cr.patient_id AND p.hospital_code = cr.hospital_code
+        WHERE cr.case_id = %s
+        """,
+        (str(case_id),),
+    )
+
+    # Initial form
+    initial = await fetch_one(
+        conn,
+        """
+        SELECT comorbidities, diagnosis_detail,
+               symptom_duration_weeks::float AS symptom_duration_weeks,
+               baseline_neuro_deficit_yn, preop_medication_jsonb, preop_image_findings
+        FROM clinical.case_initial_form
+        WHERE case_id = %s
+        """,
+        (str(case_id),),
+    )
+
+    # Extended form
+    extended = await fetch_one(
+        conn,
+        """
+        SELECT surgery_level, approach_type, laterality, operation_minutes,
+               estimated_blood_loss_ml, anesthesia_type, implant_used_yn,
+               discharge_date, hospital_stay_days::float AS hospital_stay_days,
+               adverse_events_jsonb, intraop_note
+        FROM clinical.case_extended_form
+        WHERE case_id = %s
+        """,
+        (str(case_id),),
+    )
+
+    # Outcome form
+    outcome = await fetch_one(
+        conn,
+        """
+        SELECT complication_yn, complication_detail, readmission_30d_yn,
+               reoperation_yn, surgeon_global_outcome, return_to_work_yn,
+               final_note, outcome_completed_at
+        FROM clinical.case_outcome_form
+        WHERE case_id = %s
+        """,
+        (str(case_id),),
+    )
+
+    # Latest memo
+    memo = await fetch_one(
+        conn,
+        """
+        SELECT memo_id, visibility::text AS visibility, memo_text, created_at, created_by
+        FROM clinical.case_memo
+        WHERE case_id = %s
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (str(case_id),),
+    )
+
+    # PROM requests
+    prom_requests = await fetch_all(
+        conn,
+        """
+        SELECT request_id, timepoint_code, token_status::text AS token_status,
+               requested_at, submitted_at, expires_at
+        FROM survey.prom_request
+        WHERE case_id = %s
+        ORDER BY requested_at DESC
+        """,
+        (str(case_id),),
+    )
+
+    return {
+        **_serialize_row(detail),
+        "initial_form": _serialize_row(initial),
+        "extended_form": _serialize_row(extended),
+        "outcome_form": _serialize_row(outcome),
+        "latest_memo": _serialize_row(memo),
+        "prom_requests": [_serialize_row(r) for r in (prom_requests or [])],
+    }
+
+
+async def delete_case(conn: AsyncConnection, case_id: UUID, actor_user_id: UUID) -> dict[str, Any]:
+    """Soft-delete a case by setting case_status to ARCHIVED."""
+    case_row = await _ensure_case_exists(conn, str(case_id))
+    if case_row["is_locked"]:
+        raise ForbiddenError(message="잠긴 케이스는 삭제할 수 없습니다.", error_code="CASE_LOCKED")
+
+    await execute(
+        conn,
+        """
+        UPDATE clinical.case_record
+           SET case_status = 'ARCHIVED'::clinical.case_status,
+               updated_at = now(),
+               updated_by = %s
+         WHERE case_id = %s
+        """,
+        (str(actor_user_id), str(case_id)),
+    )
+    return {"case_id": case_id, "status": "ARCHIVED"}
+
+
 async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: ClinicalUpdateRequest) -> dict[str, Any]:
     case_row = await _ensure_case_exists(conn, str(case_id))
     data = payload.model_dump(exclude_unset=True)
@@ -280,7 +472,7 @@ async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: Clinica
     if len(initial_updates) > 3:
         insert_cols, insert_placeholders, insert_values = build_insert_clause(initial_updates)
         update_payload = {k: v for k, v in initial_updates.items() if k not in {"case_id", "hospital_code", "patient_id"}}
-        update_sql, _ = build_set_clause(update_payload)
+        update_sql, update_values = build_set_clause(update_payload)
         await execute(
             conn,
             f"""
@@ -289,13 +481,13 @@ async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: Clinica
             ON CONFLICT (case_id)
             DO UPDATE SET {update_sql}, updated_at = now()
             """,
-            [*insert_values, *list(update_payload.values())],
+            [*insert_values, *update_values],
         )
 
     if len(extended_updates) > 3:
         insert_cols, insert_placeholders, insert_values = build_insert_clause(extended_updates)
         update_payload = {k: v for k, v in extended_updates.items() if k not in {"case_id", "hospital_code", "patient_id"}}
-        update_sql, _ = build_set_clause(update_payload)
+        update_sql, update_values = build_set_clause(update_payload)
         await execute(
             conn,
             f"""
@@ -304,7 +496,7 @@ async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: Clinica
             ON CONFLICT (case_id)
             DO UPDATE SET {update_sql}, updated_at = now()
             """,
-            [*insert_values, *list(update_payload.values())],
+            [*insert_values, *update_values],
         )
 
     return {
@@ -328,7 +520,7 @@ async def update_outcome(conn: AsyncConnection, case_id: UUID, payload: OutcomeU
     }
     insert_cols, insert_placeholders, insert_values = build_insert_clause(row_payload)
     update_payload = {k: v for k, v in row_payload.items() if k not in {"case_id", "hospital_code", "patient_id"}}
-    update_sql, _ = build_set_clause(update_payload)
+    update_sql, update_values = build_set_clause(update_payload)
     await execute(
         conn,
         f"""
@@ -337,7 +529,7 @@ async def update_outcome(conn: AsyncConnection, case_id: UUID, payload: OutcomeU
         ON CONFLICT (case_id)
         DO UPDATE SET {update_sql}, updated_at = now()
         """,
-        [*insert_values, *list(update_payload.values())],
+        [*insert_values, *update_values],
     )
     return {
         "case_id": case_id,
@@ -400,7 +592,7 @@ async def set_lock(conn: AsyncConnection, case_id: UUID, actor_user_id: UUID, ac
         UPDATE clinical.case_record
            SET is_locked = %s,
                lock_reason = %s,
-               locked_by = CASE WHEN %s THEN %s ELSE NULL END,
+               locked_by = CASE WHEN %s THEN %s::uuid ELSE NULL END,
                updated_at = now(),
                updated_by = %s
          WHERE case_id = %s
