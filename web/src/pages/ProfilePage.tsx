@@ -12,14 +12,14 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { CenterToast, type ToastData } from "@/components/ui/toast-modal";
-
 type Tab = "info" | "password";
+
+interface InlineMsg { type: "success" | "error"; message: string }
 
 export function ProfilePage() {
   const { user, updateUser, changePassword } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("info");
-  const [toast, setToast] = useState<ToastData | null>(null);
+  const [msg, setMsg] = useState<InlineMsg | null>(null);
   const [pwErrors, setPwErrors] = useState<Record<string, boolean>>({});
   const [pwErrorMsgs, setPwErrorMsgs] = useState<Record<string, string>>({});
 
@@ -54,8 +54,8 @@ export function ProfilePage() {
     setInfoLoading(true);
     const result = await updateUser(infoForm);
     setInfoLoading(false);
-    if (result.success) setToast({ type: "success", message: "프로필이 성공적으로 업데이트되었습니다." });
-    else setToast({ type: "error", message: result.error ?? "업데이트에 실패했습니다." });
+    if (result.success) setMsg({ type: "success", message: "프로필이 성공적으로 업데이트되었습니다." });
+    else setMsg({ type: "error", message: result.error ?? "업데이트에 실패했습니다." });
   };
 
   const handlePwSubmit = async (e: React.FormEvent) => {
@@ -87,10 +87,10 @@ export function ProfilePage() {
     const result = await changePassword(pwForm.current, pwForm.next);
     setPwLoading(false);
     if (result.success) {
-      setToast({ type: "success", message: "비밀번호가 변경되었습니다." });
+      setMsg({ type: "success", message: "비밀번호가 변경되었습니다." });
       setPwForm({ current: "", next: "", confirm: "" });
     } else {
-      setToast({ type: "error", message: result.error ?? "비밀번호 변경에 실패했습니다." });
+      setMsg({ type: "error", message: result.error ?? "비밀번호 변경에 실패했습니다." });
     }
   };
 
@@ -98,7 +98,11 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <CenterToast toast={toast} onClose={() => setToast(null)} />
+      {msg && (
+        <div className={`mb-4 p-4 rounded-lg text-sm border ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          {msg.message}
+        </div>
+      )}
 
       <div className="max-w-3xl mx-auto">
         {/* Header */}

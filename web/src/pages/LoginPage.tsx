@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { CenterToast, type ToastData } from "@/components/ui/toast-modal";
 import logoImage from "@/assets/logo.png";
 
 export function LoginPage() {
@@ -13,7 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<ToastData | null>(null);
+  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,13 +29,14 @@ export function LoginPage() {
       return;
     }
     setFieldErrors({});
+    setError("");
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
     if (result.success) {
       navigate("/");
     } else {
-      setToast({ type: 'error', message: result.error ?? "로그인에 실패했습니다." });
+      setError(result.error ?? "로그인에 실패했습니다.");
     }
   };
 
@@ -139,6 +139,14 @@ export function LoginPage() {
               {fieldErrors['비밀번호'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['비밀번호']}</p>}
             </div>
 
+            {/* Error */}
+            {error && (
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <span className="text-sm text-red-600">{error}</span>
+              </div>
+            )}
+
             {/* Submit */}
             <button
               type="submit"
@@ -159,10 +167,30 @@ export function LoginPage() {
             </button>
           </form>
 
+          {/* Demo Account */}
+          <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+            <p className="text-xs text-gray-500 mb-3">데모 계정으로 빠르게 접속하기</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setEmail("admin@ksor.kr"); setPassword("Admin1234!"); setError(""); setFieldErrors({}); }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors"
+              >
+                관리자 (ADMIN)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail("doctor@ksor.kr"); setPassword("Admin1234!"); setError(""); setFieldErrors({}); }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors"
+              >
+                연구책임자 (PI)
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      <CenterToast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

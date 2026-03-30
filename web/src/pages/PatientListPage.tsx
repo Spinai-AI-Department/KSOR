@@ -4,7 +4,7 @@ import { Search, ChevronDown, Edit, MoreHorizontal, Plus, X, Calendar } from "lu
 import { patientService, type Patient as ApiPatient } from "../api/patients";
 import { dashboardService } from "../api/dashboard";
 import { useAuth } from "../context/AuthContext";
-import { CenterToast, ConfirmDialog, type ToastData } from "@/components/ui/toast-modal";
+import { ConfirmDialog } from "@/components/ui/toast-modal";
 
 type FollowUpStatus = "Completed" | "Pending" | "Not Due" | "Overdue";
 type TabType = "list" | "complication";
@@ -74,8 +74,10 @@ function PatientListTab() {
   const [creating, setCreating] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Toast & confirm dialog
-  const [toast, setToast] = useState<ToastData | null>(null);
+  // Inline messages & confirm dialog
+  const [listError, setListError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ patientId: string; caseId: string } | null>(null);
 
   // AlimTalk
@@ -104,7 +106,8 @@ function PatientListTab() {
         token
       );
       setAlimtalkModal(null);
-      setToast({ type: 'success', message: 'AlimTalk이 성공적으로 발송되었습니다.' });
+      setSuccessMsg('AlimTalk이 성공적으로 발송되었습니다.');
+      setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err) {
       setAlimtalkError(err instanceof Error ? err.message : 'AlimTalk 발송에 실패했습니다.');
     } finally {
@@ -181,7 +184,7 @@ function PatientListTab() {
       }));
       setTotal(res.total);
     } catch (err) {
-      setToast({ type: 'error', message: err instanceof Error ? err.message : '환자 목록을 불러오는데 실패했습니다.' });
+      setListError(err instanceof Error ? err.message : '환자 목록을 불러오는데 실패했습니다.');
     } finally {
       setListLoading(false);
     }
@@ -220,7 +223,7 @@ function PatientListTab() {
       fetchPatients();
     } catch (err) {
       setDeleteConfirm(null);
-      setToast({ type: 'error', message: err instanceof Error ? err.message : '환자 삭제에 실패했습니다.' });
+      setListError(err instanceof Error ? err.message : '환자 삭제에 실패했습니다.');
     }
   };
 
@@ -258,8 +261,7 @@ function PatientListTab() {
       setNewForm({ name: "", birth_date: "", gender: "M" });
       fetchPatients();
     } catch (err) {
-      const message = err instanceof Error ? err.message : '환자 등록에 실패했습니다.';
-      setToast({ type: 'error', message });
+      setCreateError(err instanceof Error ? err.message : '환자 등록에 실패했습니다.');
     } finally {
       setCreating(false);
     }
@@ -270,6 +272,17 @@ function PatientListTab() {
 
   return (
     <>
+      {listError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {listError}
+        </div>
+      )}
+      {successMsg && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          {successMsg}
+        </div>
+      )}
+
       {/* Search & Filter Bar */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <div className="relative">
@@ -507,9 +520,6 @@ function PatientListTab() {
         onCancel={() => setDeleteConfirm(null)}
       />
 
-      {/* Center Toast */}
-      <CenterToast toast={toast} onClose={() => setToast(null)} />
-
       {/* New Patient Modal */}
       {showNewPatientModal && (
         <div
@@ -579,6 +589,9 @@ function PatientListTab() {
                 </div>
               </div>
             </div>
+            {createError && (
+              <p className="text-sm text-red-600 mt-3">{createError}</p>
+            )}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => { setShowNewPatientModal(false); setFormErrors({}); }}

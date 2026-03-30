@@ -4,7 +4,6 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { surgeryService } from "../api/surgery";
 import { patientService } from "../api/patients";
 import { useAuth } from "../context/AuthContext";
-import { CenterToast, type ToastData } from "@/components/ui/toast-modal";
 
 const devices = ["Joimax", "RIWOspine", "Stryker", "Endovision"];
 
@@ -227,7 +226,8 @@ export function SurgeryDataEntry() {
   const [followupTimepoints, setFollowupTimepoints] = useState<string[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState<ToastData | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
 
   const toggleImplant = (key: keyof typeof implants) => {
@@ -240,7 +240,7 @@ export function SurgeryDataEntry() {
 
   const handleSubmit = async () => {
     if (!token) {
-      setToast({ type: 'error', title: '인증 오류', message: '로그인이 필요합니다.' });
+      setSubmitError('로그인이 필요합니다.');
       return;
     }
 
@@ -306,9 +306,9 @@ export function SurgeryDataEntry() {
         }, token);
       }
 
-      setToast({ type: 'success', title: '저장 완료', message: '수술 정보가 성공적으로 저장되었습니다.' });
+      setSubmitSuccess(true);
     } catch (err) {
-      setToast({ type: 'error', title: '저장 실패', message: err instanceof Error ? err.message : '저장에 실패했습니다.' });
+      setSubmitError(err instanceof Error ? err.message : '저장에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -735,7 +735,12 @@ export function SurgeryDataEntry() {
 
       </fieldset>
 
-      <CenterToast toast={toast} onClose={() => setToast(null)} />
+      {submitError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{submitError}</div>
+      )}
+      {submitSuccess && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">저장되었습니다.</div>
+      )}
 
       {/* Save Button */}
       {!isViewMode && (
@@ -754,7 +759,9 @@ export function SurgeryDataEntry() {
                   followupTimepoints,
                 };
                 localStorage.setItem('ksor_surgery_draft', JSON.stringify(draftData));
-                setToast({ type: 'success', title: '임시 저장', message: '임시 저장되었습니다.' });
+                setSubmitSuccess(true);
+                setSubmitError(null);
+                setTimeout(() => setSubmitSuccess(false), 3000);
               }}
               className="px-6 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
