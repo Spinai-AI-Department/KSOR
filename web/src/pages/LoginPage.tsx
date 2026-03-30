@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-import logoImage from "figma:asset/42fc6b12cdf5889f8e5eaaa8a7a3047a4be7c365.png";
+import { useAuth } from "@/context/AuthContext";
+import logoImage from "@/assets/logo.png";
 
 export function LoginPage() {
   const navigate = useNavigate();

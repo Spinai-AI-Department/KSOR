@@ -1,5 +1,5 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Card } from "../components/ui/card";
+import { Card } from "@/components/ui/card";
 
 const vasOdiData = [
   { month: '수술전', 허리통증: 22, 다리통증: 21, 기능장애: 20 },

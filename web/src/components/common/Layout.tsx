@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, Navigate } from "react-router";
 import { LayoutGrid, Users, BarChart3, FileText, ClipboardList, LogOut, ChevronRight, Menu } from "lucide-react";
-import logoImage from "figma:asset/42fc6b12cdf5889f8e5eaaa8a7a3047a4be7c365.png";
-import { useAuth } from "../context/AuthContext";
+import logoImage from "@/assets/logo.png";
+import { useAuth } from "@/context/AuthContext";
 
 export function Layout() {
   const location = useLocation();

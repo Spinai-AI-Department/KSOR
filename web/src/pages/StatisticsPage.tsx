@@ -1,7 +1,7 @@
-import { Card } from "../components/ui/card";
+import { Card } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ScatterChart, Scatter, ZAxis } from 'recharts';
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const recoveryData = [
   { period: '수술 전', VAS_back: 8.2, VAS_leg: 7.8, ODI: 68, EQ5D: 0.42 },

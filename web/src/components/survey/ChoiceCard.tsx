@@ -1,4 +1,4 @@
-import { ChoiceOption } from '../../data/questions';
+import { ChoiceOption } from '@/utils/surveyQuestions';
 
 interface ChoiceCardProps {
   option: ChoiceOption;

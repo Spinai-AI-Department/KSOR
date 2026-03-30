@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router';
-import { Logo } from '../../components/survey/Logo';
-import { MobileFrame } from '../../components/survey/MobileFrame';
+import { Logo } from '@/components/survey/Logo';
+import { MobileFrame } from '@/components/survey/MobileFrame';
 
 export default function SurveyWelcomePage() {
   const navigate = useNavigate();

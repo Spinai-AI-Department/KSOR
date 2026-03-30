@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Logo } from '../../components/survey/Logo';
-import { MobileFrame } from '../../components/survey/MobileFrame';
-import { ProgressBar } from '../../components/survey/ProgressBar';
-import { VASSlider } from '../../components/survey/VASSlider';
-import { ChoiceCard } from '../../components/survey/ChoiceCard';
-import { surveyQuestions, VASQuestion, ChoiceQuestion } from '../../data/questions';
+import { Logo } from '@/components/survey/Logo';
+import { MobileFrame } from '@/components/survey/MobileFrame';
+import { ProgressBar } from '@/components/survey/ProgressBar';
+import { VASSlider } from '@/components/survey/VASSlider';
+import { ChoiceCard } from '@/components/survey/ChoiceCard';
+import { surveyQuestions, VASQuestion, ChoiceQuestion } from '@/utils/surveyQuestions';
 
 type VASAnswer = { [sliderId: string]: number };
 type ChoiceAnswer = number;

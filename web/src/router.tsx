@@ -1,15 +1,15 @@
 import { createBrowserRouter } from "react-router";
-import { Layout } from "./components/Layout";
-import { Dashboard } from "./pages/Dashboard";
-import { PatientTracking } from "./pages/PatientTracking";
-import { SurgeryAnalysis } from "./pages/SurgeryAnalysis";
-import { Reports } from "./pages/Reports";
-import { SurgeryDataEntry } from "./pages/SurgeryDataEntry";
-import { LoginPage } from "./pages/LoginPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import SurveyWelcomePage from "./pages/survey/WelcomePage";
-import SurveyQuestionsPage from "./pages/survey/SurveyPage";
-import SurveyCompletePage from "./pages/survey/CompletePage";
+import { Layout } from "@/components/common/Layout";
+import { Dashboard } from "@/pages/DashboardPage";
+import { PatientTracking } from "@/pages/PatientListPage";
+import { SurgeryAnalysis } from "@/pages/StatisticsPage";
+import { Reports } from "@/pages/ExportPage";
+import { SurgeryDataEntry } from "@/pages/PatientNewPage";
+import { LoginPage } from "@/pages/LoginPage";
+import { ProfilePage } from "@/pages/ProfilePage";
+import SurveyWelcomePage from "@/pages/survey/WelcomePage";
+import SurveyQuestionsPage from "@/pages/survey/SurveyPage";
+import SurveyCompletePage from "@/pages/survey/CompletePage";
 
 export const router = createBrowserRouter([
   {

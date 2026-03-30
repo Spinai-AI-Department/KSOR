@@ -1,7 +1,7 @@
-import { Card } from "../components/ui/card";
+import { Card } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Download, Calendar } from "lucide-react";
-import { Button } from "../components/ui/button";
+import { Button } from "@/components/ui/button";
 
 const monthlyData = [
   { month: '1월', surgeries: 18, complications: 1 },
