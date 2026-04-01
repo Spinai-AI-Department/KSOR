@@ -48,9 +48,9 @@ class PatientCreateRequest(APIModel):
 
 
 class PatientCreateResponse(APIModel):
-    patient_id: UUID
+    patient_id: str
     case_id: UUID
-    registration_no: str
+    registration_id: str
     current_step: str = "TAB_1"
 
 
@@ -76,6 +76,22 @@ class ClinicalUpdateRequest(APIModel):
     hospital_stay_days: float | None = Field(default=None, ge=0)
     adverse_events_jsonb: list[dict] | None = None
     intraop_note: str | None = None
+    # Extended fields stored in additional_attributes jsonb
+    surgeon_name: str | None = None
+    asa_class: str | None = None
+    diagnosis_level: str | None = None
+    myelopathy_yn: bool | None = None
+    num_levels: int | None = Field(default=None, ge=1)
+    surgeon_experience_years: int | None = Field(default=None, ge=0)
+    antibiotic_prophylaxis_yn: bool | None = None
+    cci_score: int | None = Field(default=None, ge=0)
+    endo_technique: str | None = None
+    endo_device: str | None = None
+    scope_angle: str | None = None
+    viz_quality: str | None = None
+    conversion_yn: bool | None = None
+    reoperation_reason: str | None = None
+    followup_timepoints: list[str] | None = None
 
 
 class OutcomeUpdateRequest(APIModel):
@@ -87,6 +103,13 @@ class OutcomeUpdateRequest(APIModel):
     return_to_work_yn: bool | None = None
     final_note: str | None = None
     outcome_completed_at: datetime | None = None
+    # Extended complication fields (stored in final_note as JSON)
+    complications: list[str] | None = None
+    complication_severity: str | None = None
+    complication_date: date | None = None
+    conversion_yn: bool | None = None
+    conversion_reason: str | None = None
+    reoperation_date: date | None = None
 
 
 class MemoUpdateRequest(APIModel):
@@ -106,10 +129,10 @@ class PromSendRequest(APIModel):
 
 
 class PatientListItem(APIModel):
-    patient_id: UUID
+    patient_id: str
     case_id: UUID
     no: int
-    registration_no: str
+    registration_id: str
     patient_initial: str
     gender_age: str
     visit_date: date

@@ -648,6 +648,9 @@ CREATE TABLE IF NOT EXISTS auth.user_account (
     last_password_changed_at   timestamptz,
     locked_at                  timestamptz,
     locked_reason              text,
+    department                 varchar(100),
+    specialty                  varchar(100),
+    license_number             varchar(50),
     deleted_at                 timestamptz,
     created_at                 timestamptz NOT NULL DEFAULT now(),
     created_by                 uuid,
@@ -1054,7 +1057,7 @@ CREATE TABLE IF NOT EXISTS clinical.case_record (
     case_id                     uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code               varchar(20) NOT NULL REFERENCES ref.hospital(hospital_code),
     patient_id                  uuid NOT NULL,
-    registration_no             varchar(40) NOT NULL,
+    registration_id             varchar(40) NOT NULL,
     consent_date                date,
     visit_date                  date NOT NULL,
     surgery_date                date,
@@ -1073,7 +1076,7 @@ CREATE TABLE IF NOT EXISTS clinical.case_record (
     created_by                  uuid,
     updated_at                  timestamptz NOT NULL DEFAULT now(),
     updated_by                  uuid,
-    UNIQUE (registration_no),
+    UNIQUE (registration_id),
     UNIQUE (case_id, hospital_code),
     CONSTRAINT fk_case_record_patient
         FOREIGN KEY (patient_id, hospital_code)
@@ -1261,7 +1264,7 @@ CREATE TABLE IF NOT EXISTS clinical.case_lock_history (
 CREATE INDEX IF NOT EXISTS idx_case_lock_history_case_time
     ON clinical.case_lock_history (case_id, changed_at DESC);
 
-CREATE OR REPLACE FUNCTION clinical.next_registration_no(
+CREATE OR REPLACE FUNCTION clinical.next_registration_id(
     p_hospital_code varchar(20),
     p_visit_date date
 )
@@ -1292,8 +1295,8 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        IF NEW.registration_no IS NULL OR btrim(NEW.registration_no) = '' THEN
-            NEW.registration_no := clinical.next_registration_no(NEW.hospital_code, NEW.visit_date);
+        IF NEW.registration_id IS NULL OR btrim(NEW.registration_id) = '' THEN
+            NEW.registration_id := clinical.next_registration_id(NEW.hospital_code, NEW.visit_date);
         END IF;
 
         IF NEW.is_locked AND NEW.locked_at IS NULL THEN
@@ -1305,11 +1308,11 @@ BEGIN
         END IF;
     ELSE
         IF OLD.is_locked AND NOT app_private.is_admin() THEN
-            IF (NEW.patient_id, NEW.registration_no, NEW.consent_date, NEW.visit_date, NEW.surgery_date,
+            IF (NEW.patient_id, NEW.registration_id, NEW.consent_date, NEW.visit_date, NEW.surgery_date,
                 NEW.diagnosis_code, NEW.procedure_code, NEW.spinal_region, NEW.surgeon_user_id,
                 NEW.coordinator_user_id, NEW.enrollment_source)
                IS DISTINCT FROM
-               (OLD.patient_id, OLD.registration_no, OLD.consent_date, OLD.visit_date, OLD.surgery_date,
+               (OLD.patient_id, OLD.registration_id, OLD.consent_date, OLD.visit_date, OLD.surgery_date,
                 OLD.diagnosis_code, OLD.procedure_code, OLD.spinal_region, OLD.surgeon_user_id,
                 OLD.coordinator_user_id, OLD.enrollment_source) THEN
                 RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = '잠금된 케이스는 수정할 수 없습니다.';
@@ -2101,7 +2104,7 @@ SELECT
     cr.case_id,
     cr.hospital_code,
     cr.patient_id,
-    cr.registration_no,
+    cr.registration_id,
     p.patient_initial,
     p.sex,
     p.birth_year,
@@ -2151,6 +2154,9 @@ LEFT JOIN latest_request lr
 LEFT JOIN latest_submission ls
   ON ls.case_id = cr.case_id
  AND ls.hospital_code = cr.hospital_code;
+
+-- Ensure RLS on underlying tables is enforced when accessed through this view
+ALTER VIEW analytics.v_case_status SET (security_invoker = true);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS analytics.mv_global_prom_benchmark AS
 SELECT
@@ -2623,8 +2629,9 @@ CREATE POLICY p_case_memo_access
 DROP POLICY IF EXISTS p_case_lock_history_access ON clinical.case_lock_history;
 CREATE POLICY p_case_lock_history_access
     ON clinical.case_lock_history
-    FOR SELECT
-    USING (app_private.can_access_hospital(hospital_code));
+    FOR ALL
+    USING (app_private.can_access_hospital(hospital_code))
+    WITH CHECK (app_private.can_access_hospital(hospital_code));
 
 DROP POLICY IF EXISTS p_prom_request_access ON survey.prom_request;
 CREATE POLICY p_prom_request_access
@@ -2691,5 +2698,24 @@ CREATE POLICY p_export_request_update
         app_private.is_admin()
         OR requester_user_id = app_private.current_app_user_id()
     );
+
+-- --------------------------------------------------------------------------
+-- Application role setup (run BEFORE deploying the application)
+-- --------------------------------------------------------------------------
+-- The ksor_app role MUST NOT have BYPASSRLS so that Row-Level Security
+-- policies are enforced. Sequence grants are required for INSERT operations.
+--
+-- DO $$
+-- BEGIN
+--   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ksor_app') THEN
+--     CREATE ROLE ksor_app LOGIN PASSWORD 'CHANGE_ME' NOBYPASSRLS;
+--   ELSE
+--     ALTER ROLE ksor_app NOBYPASSRLS;
+--   END IF;
+-- END $$;
+--
+-- GRANT USAGE ON SCHEMA app_private, ref, auth, patient, vault, clinical,
+--                       survey, messaging, ops, audit, analytics TO ksor_app;
+-- GRANT USAGE, SELECT ON SEQUENCE patient.patient_id_seq TO ksor_app;
 
 COMMIT;

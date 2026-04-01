@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { useSearchParams } from "react-router";
+import { useState, useEffect } from "react";
+import { useSearchParams, useLocation, useNavigate } from "react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { surgeryService } from "../api/surgery";
-import { patientService } from "../api/patients";
+import { patientService, type CaseDetail } from "../api/patients";
+import { ApiValidationError, translateValidationMsg } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 const devices = ["Joimax", "RIWOspine", "Stryker", "Endovision"];
@@ -10,19 +11,35 @@ const devices = ["Joimax", "RIWOspine", "Stryker", "Endovision"];
 const approachOptions = ["Full-endo", "UBE", "Biportal", "Open"] as const;
 type Approach = (typeof approachOptions)[number];
 
-const procedureTypes = [
-  "감압술 (Decompression)",
-  "유합술 (Fusion)",
-  "디스크 치환술 (Disc Replacement)",
-  "기타 (Other)",
+// code → display label maps (code is what gets sent to backend / stored in DB)
+const procedureCodeMap: { code: string; label: string }[] = [
+  { code: "P001", label: "내시경 디스크 절제술 (Full-endoscopic discectomy)" },
+  { code: "P002", label: "UBE 감압술 (UBE decompression)" },
+  { code: "P003", label: "현미경 디스크 절제술 (Microscopic discectomy)" },
+  { code: "UBE", label: "양방향 내시경 (UBE)" },
+  { code: "FULL_ENDO", label: "단일공 내시경 (Full-endoscopic)" },
+  { code: "SPINOSCOPY", label: "Spinoscopy" },
 ];
 
-const primaryDiagnosisOptions = [
-  "추간판 탈출증 (HNP)",
-  "척추관 협착증 (Stenosis)",
-  "척추전방전위증 (Spondylolisthesis)",
-  "퇴행성 디스크 질환 (DDD)",
-  "기타 (Other)",
+const diagnosisCodeMap: { code: string; label: string }[] = [
+  { code: "HNP", label: "추간판 탈출증 (HNP)" },
+  { code: "STENOSIS", label: "척추관 협착증 (Stenosis)" },
+  { code: "SPONDY", label: "척추전방전위증 (Spondylolisthesis)" },
+  { code: "D001", label: "요추 추간판 탈출증 (Lumbar disc herniation)" },
+  { code: "D002", label: "척추관 협착증 (Spinal stenosis)" },
+  { code: "D003", label: "경추 추간판 탈출증 (Cervical disc herniation)" },
+];
+
+// Legacy string arrays kept for dropdowns that don't map to ref tables
+const procedureTypes = procedureCodeMap.map((p) => p.label);
+const primaryDiagnosisOptions = diagnosisCodeMap.map((d) => d.label);
+
+const followupTimepointMap: { code: string; label: string }[] = [
+  { code: "PRE_OP", label: "Pre-op" },
+  { code: "POST_1M", label: "1개월 (1m)" },
+  { code: "POST_3M", label: "3개월 (3m)" },
+  { code: "POST_6M", label: "6개월 (6m)" },
+  { code: "POST_1Y", label: "1년 (1yr)" },
 ];
 
 const compTypeOptions = [
@@ -57,23 +74,25 @@ function FieldLabel({
   badge?: "KSOR KEY" | "KSOR UNIQUE";
 }) {
   return (
-    <div className="relative group mb-1.5 w-fit">
-      <div className="flex items-center gap-1.5 cursor-default">
-        <span className="text-sm text-gray-700">{label}</span>
+    <div className="relative group min-h-[2.75rem] mb-1.5 flex flex-col justify-end">
+      <span className="text-sm text-gray-700 cursor-default leading-relaxed">
+        {label}
         {ksor === "Core" && (
-          <span className="text-[10px] font-medium text-blue-500 border border-blue-200 bg-blue-50 rounded px-1 py-0.5 leading-none">Core</span>
+          <span className="text-[10px] font-medium text-blue-500 border border-blue-200 bg-blue-50 rounded px-1 py-0.5 leading-none ml-1.5 inline-block align-middle">Core</span>
         )}
         {ksor === "Optional" && (
-          <span className="text-[10px] font-medium text-gray-400 border border-gray-200 bg-gray-50 rounded px-1 py-0.5 leading-none">Optional</span>
+          <span className="text-[10px] font-medium text-gray-400 border border-gray-200 bg-gray-50 rounded px-1 py-0.5 leading-none ml-1.5 inline-block align-middle">Optional</span>
         )}
         {badge && (
-          <span className="text-xs font-medium text-orange-500">{badge}</span>
+          <span className="text-xs font-medium text-orange-500 ml-1.5">{badge}</span>
         )}
-        <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${note ? "text-gray-300 group-hover:text-gray-500" : "opacity-0"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </div>
-      <span className="block text-xs text-gray-400 mt-0.5">{sub || "\u00A0"}</span>
+        {note && (
+          <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 transition-colors ml-1 inline-block align-middle" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )}
+      </span>
+      {sub && <span className="block text-xs text-gray-400 mt-0.5">{sub}</span>}
 
       {note && (
         <div className="absolute bottom-full left-0 mb-2 w-64 bg-gray-900 text-white text-xs rounded-lg px-3 py-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-xl leading-relaxed">
@@ -161,7 +180,10 @@ function Dropdown({
 // ── Page ──────────────────────────────────────────────────────────────────────
 export function SurgeryDataEntry() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const passedPatient = (location.state as { patient?: Record<string, unknown> } | null)?.patient;
   const mode = searchParams.get('mode') ?? '';
   const isViewMode = mode === 'view';
   const isFollowupMode = mode === 'followup';
@@ -176,7 +198,11 @@ export function SurgeryDataEntry() {
 
   // Surgery dropdowns
   const [procedureOpen, setProcedureOpen] = useState(false);
-  const [selectedProcedure, setSelectedProcedure] = useState("");
+  const [selectedProcedure, setSelectedProcedure] = useState(() => {
+    const code = passedPatient?.procedureCode as string | null;
+    if (!code) return '';
+    return procedureCodeMap.find(p => p.code === code)?.label ?? code;
+  });
   const [diagnosisOpen, setDiagnosisOpen] = useState(false);
 
   // Implant / conversion
@@ -185,12 +211,16 @@ export function SurgeryDataEntry() {
 
   // Demographics
   const [patientId, setPatientId] = useState(() => searchParams.get('patient') ?? '');
-  const [surgeryDate, setSurgeryDate] = useState("");
+  const [surgeryDate, setSurgeryDate] = useState(() => (passedPatient?.surgeryDate as string) ?? '');
   const [surgeon, setSurgeon] = useState("");
   const [asaClass, setAsaClass] = useState("");
 
-  // Diagnosis
-  const [diagnosis, setDiagnosis] = useState("");
+  // Diagnosis — pre-fill from passed patient data if available
+  const [diagnosis, setDiagnosis] = useState(() => {
+    const code = passedPatient?.diagnosisCode as string | null;
+    if (!code) return '';
+    return diagnosisCodeMap.find(d => d.code === code)?.label ?? code;
+  });
   const [diagnosisLevel, setDiagnosisLevel] = useState("");
   const [myelopathy, setMyelopathy] = useState<"yes" | "no" | "">("");
 
@@ -228,7 +258,83 @@ export function SurgeryDataEntry() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+
+  // Fetch existing case detail and pre-fill all form fields
+  useEffect(() => {
+    if (!patientId || !token) return;
+    setLoading(true);
+    patientService.getDetail(patientId, token).then((detail: CaseDetail) => {
+      // Case record fields
+      if (detail.surgery_date) setSurgeryDate(detail.surgery_date);
+      if (detail.diagnosis_code) setDiagnosis(diagnosisCodeMap.find(d => d.code === detail.diagnosis_code)?.label ?? detail.diagnosis_code);
+      if (detail.procedure_code) setSelectedProcedure(procedureCodeMap.find(p => p.code === detail.procedure_code)?.label ?? detail.procedure_code);
+
+      // Extended form
+      const ext = detail.extended_form;
+      if (ext) {
+        if (ext.approach_type) setSelectedApproach(ext.approach_type as Approach);
+        if (ext.laterality) setSelectedLaterality(ext.laterality);
+        if (ext.surgery_level) setOpLevel(ext.surgery_level);
+        if (ext.operation_minutes) setOpTime(String(ext.operation_minutes));
+        if (ext.estimated_blood_loss_ml) setBloodLoss(String(ext.estimated_blood_loss_ml));
+        if (ext.hospital_stay_days) setHospitalDays(String(ext.hospital_stay_days));
+        if (ext.implant_used_yn !== null) {
+          if (ext.implant_used_yn) setImplants(prev => ({ ...prev, cage: true }));
+          else setImplants({ cage: false, screws: false, none: true });
+        }
+      }
+
+      // Initial form — comorbidities
+      const ini = detail.initial_form;
+      if (ini) {
+        const comorbs = ini.comorbidities || [];
+        if (comorbs.includes('DIABETES')) setDiabetes('yes');
+        if (comorbs.includes('CARDIOVASCULAR')) setCardiovascular('yes');
+        if (comorbs.includes('NEUROLOGICAL')) setNeurological('yes');
+        if (comorbs.includes('DEPRESSION_ANXIETY')) setDepressionAnxiety('yes');
+        if (comorbs.includes('PREV_SPINE_SURGERY')) setPrevSpineSurgery('yes');
+
+        // Additional attributes (surgeon_name, asa_class, etc.)
+        const aa = ini.additional_attributes;
+        if (aa) {
+          if (aa.surgeon_name) setSurgeon(aa.surgeon_name as string);
+          if (aa.asa_class) setAsaClass(aa.asa_class as string);
+          if (aa.diagnosis_level) setDiagnosisLevel(aa.diagnosis_level as string);
+          if (aa.myelopathy_yn === true) setMyelopathy('yes');
+          else if (aa.myelopathy_yn === false) setMyelopathy('no');
+          if (aa.num_levels) setNumLevels(String(aa.num_levels));
+          if (aa.surgeon_experience_years) setSurgeonExp(String(aa.surgeon_experience_years));
+          if (aa.antibiotic_prophylaxis_yn === true) setAntibioticProphylaxis('yes');
+          else if (aa.antibiotic_prophylaxis_yn === false) setAntibioticProphylaxis('no');
+          if (aa.cci_score) setCci(String(aa.cci_score));
+          if (aa.endo_technique) setSelectedTechnique(aa.endo_technique as string);
+          if (aa.endo_device) setSelectedDevice(aa.endo_device as string);
+          if (aa.scope_angle) setScopeAngle(aa.scope_angle as string);
+          if (aa.viz_quality) setVizQuality(aa.viz_quality as string);
+          if (aa.conversion_yn === true) setConversion('yes');
+          else if (aa.conversion_yn === false) setConversion('no');
+          if (Array.isArray(aa.followup_timepoints)) setFollowupTimepoints(aa.followup_timepoints as string[]);
+        }
+      }
+
+      // Outcome form
+      const out = detail.outcome_form;
+      if (out) {
+        if (out.complication_yn === true) setIntraoopComp('yes');
+        else if (out.complication_yn === false) setIntraoopComp('no');
+        if (out.complication_detail) setCompType(out.complication_detail);
+        if (out.reoperation_yn === true) setReoperation('yes');
+        else if (out.reoperation_yn === false) setReoperation('no');
+        if (out.readmission_30d_yn === true) setReadmission30('yes');
+        else if (out.readmission_30d_yn === false) setReadmission30('no');
+        if (out.final_note) setReoperationReason(out.final_note);
+      }
+    }).catch(() => {
+      // Case not found or no detail — keep defaults
+    }).finally(() => setLoading(false));
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleImplant = (key: keyof typeof implants) => {
     if (key === "none") {
@@ -240,26 +346,23 @@ export function SurgeryDataEntry() {
 
   const handleSubmit = async () => {
     if (!token) {
-      setSubmitError('데모 모드에서는 저장할 수 없습니다.');
+      setSubmitError('로그인이 필요합니다.');
       return;
     }
 
     // Field-level validation
-    const errors: Record<string, string> = {};
-    const errorFlags: Record<string, boolean> = {};
+    const newFieldErrors: Record<string, string> = {};
     if (!patientId) {
-      errors['환자 ID'] = '환자 ID를 입력해주세요.';
-      errorFlags['patientId'] = true;
+      newFieldErrors['patientId'] = '환자 번호를 입력해주세요.';
     }
     if (!surgeryDate) {
-      errors['수술일'] = '수술일을 입력해주세요.';
-      errorFlags['surgeryDate'] = true;
+      newFieldErrors['surgeryDate'] = '수술일을 입력해주세요.';
     }
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errorFlags);
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors);
       // Scroll to and focus the first error field
       setTimeout(() => {
-        const firstField = Object.keys(errorFlags)[0];
+        const firstField = Object.keys(newFieldErrors)[0];
         const el = document.querySelector<HTMLInputElement>(`[data-field="${firstField}"]`);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -270,6 +373,7 @@ export function SurgeryDataEntry() {
     }
 
     setFieldErrors({});
+    setSubmitError(null);
     setSubmitting(true);
     try {
       // Build comorbidities list
@@ -283,7 +387,7 @@ export function SurgeryDataEntry() {
       // Update clinical data for the case (patientId is used as caseId here)
       await surgeryService.updateClinical(patientId, {
         surgery_date: surgeryDate || undefined,
-        diagnosis_code: diagnosis || undefined,
+        diagnosis_code: diagnosisCodeMap.find((d) => d.label === diagnosis)?.code || diagnosis || undefined,
         surgery_level: opLevel || undefined,
         operation_minutes: Number(opTime) || undefined,
         estimated_blood_loss_ml: Number(bloodLoss) || undefined,
@@ -292,8 +396,22 @@ export function SurgeryDataEntry() {
         laterality: selectedLaterality || undefined,
         implant_used_yn: implants.cage || implants.screws,
         comorbidities: comorbidities.length > 0 ? comorbidities : undefined,
-        procedure_code: selectedProcedure || undefined,
-        anesthesia_type: undefined,
+        procedure_code: procedureCodeMap.find((p) => p.label === selectedProcedure)?.code || selectedProcedure || undefined,
+        // Fields stored in additional_attributes
+        surgeon_name: surgeon || undefined,
+        asa_class: asaClass || undefined,
+        diagnosis_level: diagnosisLevel || undefined,
+        myelopathy_yn: myelopathy === 'yes' ? true : myelopathy === 'no' ? false : undefined,
+        num_levels: Number(numLevels) || undefined,
+        surgeon_experience_years: Number(surgeonExp) || undefined,
+        antibiotic_prophylaxis_yn: antibioticProphylaxis === 'yes' ? true : antibioticProphylaxis === 'no' ? false : undefined,
+        cci_score: Number(cci) || undefined,
+        endo_technique: selectedTechnique || undefined,
+        endo_device: selectedDevice || undefined,
+        scope_angle: scopeAngle || undefined,
+        viz_quality: vizQuality || undefined,
+        conversion_yn: conversion === 'yes' ? true : conversion === 'no' ? false : undefined,
+        followup_timepoints: followupTimepoints.length > 0 ? followupTimepoints : undefined,
       }, token);
 
       // Submit outcomes if any complications data exists
@@ -303,16 +421,68 @@ export function SurgeryDataEntry() {
           complication_detail: compType || undefined,
           reoperation_yn: reoperation === 'yes',
           readmission_30d_yn: readmission30 === 'yes',
+          final_note: reoperationReason || undefined,
         }, token);
       }
 
       setSubmitSuccess(true);
+      navigate('/patients', { state: { saved: true } });
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : '저장에 실패했습니다.');
+      if (err instanceof ApiValidationError) {
+        // backend field → data-field attribute
+        const fieldMap: Record<string, string> = {
+          case_id: 'patientId', surgery_date: 'surgeryDate', diagnosis_code: 'diagnosis',
+          procedure_code: 'procedure', surgery_level: 'opLevel', operation_minutes: 'opTime',
+          estimated_blood_loss_ml: 'bloodLoss', hospital_stay_days: 'hospitalDays',
+          surgeon_name: 'surgeon', asa_class: 'asaClass', num_levels: 'numLevels',
+          surgeon_experience_years: 'surgeonExp', cci_score: 'cci',
+          approach_type: 'approach', laterality: 'laterality',
+          comorbidities: 'comorbidities', followup_timepoints: 'followupTimepoints',
+        };
+        // backend field → Korean UI label
+        const labelMap: Record<string, string> = {
+          case_id: '환자 번호', surgery_date: '수술일', diagnosis_code: '진단명',
+          procedure_code: '수술 방법', surgery_level: '수술 레벨', operation_minutes: '수술 시간',
+          estimated_blood_loss_ml: '출혈량', hospital_stay_days: '입원 기간',
+          surgeon_name: '집도의', asa_class: 'ASA 분류', num_levels: '레벨 수',
+          surgeon_experience_years: '집도의 경험', cci_score: 'CCI 점수',
+          approach_type: '접근법', laterality: '편측성',
+          comorbidities: '동반 질환', followup_timepoints: '추적 관찰 시점',
+        };
+        const newErrors: Record<string, string> = {};
+        const errorLabels: string[] = [];
+        for (const fe of err.fields) {
+          const mapped = fieldMap[fe.field] ?? fe.field;
+          const label = labelMap[fe.field] ?? fe.field;
+          newErrors[mapped] = `${label}: ${translateValidationMsg(fe.message)}`;
+          errorLabels.push(label);
+        }
+        setFieldErrors(newErrors);
+        setSubmitError(`다음 항목을 확인해주세요: ${errorLabels.join(', ')}`);
+        // Scroll to first errored field
+        setTimeout(() => {
+          const firstField = Object.keys(newErrors)[0];
+          const el = document.querySelector<HTMLElement>(`[data-field="${firstField}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.focus();
+          }
+        }, 0);
+      } else {
+        setSubmitError(err instanceof Error ? err.message : '저장에 실패했습니다.');
+      }
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <p className="text-gray-500">데이터를 불러오는 중...</p>
+      </div>
+    );
+  }
 
   return (
     <div className={`p-4 md:p-8 min-h-screen bg-gray-50 ${isViewMode ? 'pointer-events-none opacity-90' : ''}`} style={isViewMode ? { pointerEvents: 'auto' } : undefined}>
@@ -337,26 +507,27 @@ export function SurgeryDataEntry() {
       <div className={sectionCls}>
         <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">Demographics</p>
         <h2 className="text-base text-gray-900 mb-5">환자 기본 정보</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
           <div>
-            <FieldLabel label={searchParams.get('patient') ? "Case ID (auto-filled)" : "Patient ID"} />
+            <FieldLabel label={searchParams.get('patient') ? "환자 번호 (자동입력)" : "환자 번호"} />
             {searchParams.get('patient') ? (
               <input type="text" value={patientId} readOnly className={`${inputCls} bg-gray-50 text-gray-500 cursor-not-allowed`} />
             ) : (
               <>
-                <input type="text" data-field="patientId" value={patientId} onChange={(e) => { setPatientId(e.target.value); setFieldErrors((prev) => ({ ...prev, patientId: false })); }} placeholder="예: 201933070" className={`${inputCls} ${fieldErrors['patientId'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
-                {fieldErrors['patientId'] && <p className="text-xs text-red-500 mt-1">환자 ID를 입력해주세요.</p>}
+                <input type="text" data-field="patientId" value={patientId} onChange={(e) => { setPatientId(e.target.value); setFieldErrors((prev) => { const { patientId: _, ...rest } = prev; return rest; }); }} placeholder="예: 201933070" className={`${inputCls} ${fieldErrors['patientId'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+                {fieldErrors['patientId'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['patientId']}</p>}
               </>
             )}
           </div>
           <div>
             <FieldLabel label="수술일 (Surgery Date)" ksor="Core" />
-            <input type="date" data-field="surgeryDate" value={surgeryDate} onChange={(e) => { setSurgeryDate(e.target.value); setFieldErrors((prev) => ({ ...prev, surgeryDate: false })); }} className={`${inputCls} ${fieldErrors['surgeryDate'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
-            {fieldErrors['surgeryDate'] && <p className="text-xs text-red-500 mt-1">수술일을 입력해주세요.</p>}
+            <input type="date" max="9999-12-31" data-field="surgeryDate" value={surgeryDate} onChange={(e) => { setSurgeryDate(e.target.value); setFieldErrors((prev) => { const { surgeryDate: _, ...rest } = prev; return rest; }); }} className={`${inputCls} ${fieldErrors['surgeryDate'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['surgeryDate'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['surgeryDate']}</p>}
           </div>
           <div>
             <FieldLabel label="집도의 (Surgeon)" />
-            <input type="text" value={surgeon} onChange={(e) => setSurgeon(e.target.value)} placeholder="집도의 이름" className={inputCls} />
+            <input type="text" data-field="surgeon" value={surgeon} onChange={(e) => setSurgeon(e.target.value)} placeholder="집도의 이름" className={`${inputCls} ${fieldErrors['surgeon'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['surgeon'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['surgeon']}</p>}
           </div>
           <div>
             <FieldLabel
@@ -378,7 +549,7 @@ export function SurgeryDataEntry() {
       <div className={sectionCls}>
         <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">Comorbidities</p>
         <h2 className="text-base text-gray-900 mb-5">동반 질환</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 items-start">
           <div>
             <FieldLabel label="당뇨병" sub="Diabetes" ksor="Core" note="Most commonly collected comorbidity across registries" />
             <RadioGroup value={diabetes} onChange={setDiabetes} />
@@ -401,7 +572,8 @@ export function SurgeryDataEntry() {
           </div>
           <div>
             <FieldLabel label="동반 질환 지수 (CCI)" sub="Comorbidity Index" ksor="Optional" note="BSR and CSORN use CCI; consider for Phase 2" />
-            <input type="number" value={cci} onChange={(e) => setCci(e.target.value)} min="0" placeholder="점수 입력" className={inputCls} />
+            <input type="number" data-field="cci" value={cci} onChange={(e) => setCci(e.target.value)} min="0" placeholder="점수 입력" className={`${inputCls} ${fieldErrors['cci'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['cci'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['cci']}</p>}
           </div>
         </div>
       </div>
@@ -410,7 +582,7 @@ export function SurgeryDataEntry() {
       <div className={sectionCls}>
         <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">Diagnosis</p>
         <h2 className="text-base text-gray-900 mb-5">진단</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
           <div>
             <FieldLabel label="진단명 (Primary Diagnosis)" ksor="Core" note="HNP, Stenosis, Spondylolisthesis, DDD, etc." />
             <Dropdown
@@ -437,7 +609,7 @@ export function SurgeryDataEntry() {
       <div className={sectionCls}>
         <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">Surgery</p>
         <h2 className="text-base text-gray-900 mb-5">수술 정보</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start mb-6">
           <div>
             <FieldLabel label="수술 방법 (Procedure Type)" ksor="Core" note="Decompression, fusion, disc replacement, etc." />
             <Dropdown
@@ -451,23 +623,28 @@ export function SurgeryDataEntry() {
           </div>
           <div>
             <FieldLabel label="수술 레벨 (Surgical Level)" ksor="Core" />
-            <input type="text" value={opLevel} onChange={(e) => setOpLevel(e.target.value)} placeholder="예: L4-L5" className={inputCls} />
+            <input type="text" data-field="opLevel" value={opLevel} onChange={(e) => setOpLevel(e.target.value)} placeholder="예: L4-L5" className={`${inputCls} ${fieldErrors['opLevel'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['opLevel'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['opLevel']}</p>}
           </div>
           <div>
             <FieldLabel label="레벨 수 (Number of Levels)" ksor="Core" />
-            <input type="number" value={numLevels} onChange={(e) => setNumLevels(e.target.value)} placeholder="예: 1" min="1" className={inputCls} />
+            <input type="number" data-field="numLevels" value={numLevels} onChange={(e) => setNumLevels(e.target.value)} placeholder="예: 1" min="1" className={`${inputCls} ${fieldErrors['numLevels'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['numLevels'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['numLevels']}</p>}
           </div>
           <div>
             <FieldLabel label="수술 시간 (Op Time, min)" ksor="Core" />
-            <input type="number" value={opTime} onChange={(e) => setOpTime(e.target.value)} placeholder="분 단위" className={inputCls} />
+            <input type="number" data-field="opTime" value={opTime} onChange={(e) => setOpTime(e.target.value)} placeholder="분 단위" className={`${inputCls} ${fieldErrors['opTime'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['opTime'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['opTime']}</p>}
           </div>
           <div>
             <FieldLabel label="출혈량 (Blood Loss, mL)" ksor="Optional" note="Less relevant for endoscopic" />
-            <input type="number" value={bloodLoss} onChange={(e) => setBloodLoss(e.target.value)} placeholder="mL 단위" className={inputCls} />
+            <input type="number" data-field="bloodLoss" value={bloodLoss} onChange={(e) => setBloodLoss(e.target.value)} placeholder="mL 단위" className={`${inputCls} ${fieldErrors['bloodLoss'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['bloodLoss'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['bloodLoss']}</p>}
           </div>
           <div>
             <FieldLabel label="입원 기간 (Hospital Days)" ksor="Core" />
-            <input type="number" value={hospitalDays} onChange={(e) => setHospitalDays(e.target.value)} placeholder="일 수" className={inputCls} />
+            <input type="number" data-field="hospitalDays" value={hospitalDays} onChange={(e) => setHospitalDays(e.target.value)} placeholder="일 수" className={`${inputCls} ${fieldErrors['hospitalDays'] ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+            {fieldErrors['hospitalDays'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['hospitalDays']}</p>}
           </div>
           <div>
             <FieldLabel label="집도의 경험 수준" sub="Surgeon Experience Level" ksor="Optional" note="Consider for learning curve analysis" />
@@ -484,7 +661,7 @@ export function SurgeryDataEntry() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-5 border-t border-gray-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-5 border-t border-gray-100 items-start">
           <div>
             <FieldLabel label="임플란트 사용 (Implant Used)" ksor="Core" note="Spine Tango has detailed implant catalogue" />
             <div className="space-y-2.5 mt-1">
@@ -525,7 +702,7 @@ export function SurgeryDataEntry() {
       <div className={sectionCls}>
         <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">KSOR Endoscopic</p>
         <h2 className="text-base text-gray-900 mb-5">내시경 세부 정보</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
           {/* 접근법 */}
           <div>
             <FieldLabel
@@ -665,7 +842,7 @@ export function SurgeryDataEntry() {
       <div className={sectionCls}>
         <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">Complications</p>
         <h2 className="text-base text-gray-900 mb-5">합병증</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
           <div>
             <FieldLabel label="수술 중 합병증" sub="Intraoperative Complication" ksor="Core" note="Dural tear, nerve injury, etc." />
             <RadioGroup value={intraoopComp} onChange={setIntraoopComp} />
@@ -713,21 +890,21 @@ export function SurgeryDataEntry() {
         <h2 className="text-base text-gray-900 mb-5">추적 관찰 시점</h2>
         <FieldLabel label="추적 관찰 시점 (Follow-up Timepoints)" ksor="Core" note="KSOR: more frequent early FU for endoscopic" />
         <div className="flex flex-wrap gap-2 mt-1">
-          {["Pre-op", "1개월 (1m)", "3개월 (3m)", "6개월 (6m)", "1년 (1yr)"].map((tp) => (
+          {followupTimepointMap.map(({ code, label }) => (
             <button
-              key={tp}
+              key={code}
               onClick={() =>
                 setFollowupTimepoints((prev) =>
-                  prev.includes(tp) ? prev.filter((t) => t !== tp) : [...prev, tp]
+                  prev.includes(code) ? prev.filter((t) => t !== code) : [...prev, code]
                 )
               }
               className={`px-4 py-1.5 rounded-full border text-sm transition-colors ${
-                followupTimepoints.includes(tp)
+                followupTimepoints.includes(code)
                   ? "bg-blue-600 text-white border-blue-600"
                   : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
               }`}
             >
-              {tp}
+              {label}
             </button>
           ))}
         </div>

@@ -9,6 +9,7 @@ from fastapi.responses import ORJSONResponse
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 
+import psycopg
 import psycopg.errors
 
 from app.api.router import api_router
@@ -128,15 +129,68 @@ async def raise_exception_handler(request: Request, exc: psycopg.errors.RaiseExc
     )
 
 
+@app.exception_handler(psycopg.errors.NotNullViolation)
+async def not_null_violation_handler(request: Request, exc: psycopg.errors.NotNullViolation):
+    detail = str(exc).split("DETAIL:  ")[-1].split("\n")[0] if "DETAIL:" in str(exc) else str(exc)
+    return ORJSONResponse(
+        status_code=400,
+        content={
+            "status": "error",
+            "error_code": "NOT_NULL_VIOLATION",
+            "message": f"필수 항목이 누락되었습니다: {detail}",
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(psycopg.errors.InsufficientPrivilege)
+async def insufficient_privilege_handler(request: Request, exc: psycopg.errors.InsufficientPrivilege):
+    return ORJSONResponse(
+        status_code=403,
+        content={
+            "status": "error",
+            "error_code": "INSUFFICIENT_PRIVILEGE",
+            "message": "데이터 접근 권한이 없습니다.",
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(psycopg.Error)
+async def generic_db_error_handler(request: Request, exc: psycopg.Error):
+    import logging
+    logging.getLogger(__name__).error("Unhandled DB error: %s", exc, exc_info=True)
+    return ORJSONResponse(
+        status_code=500,
+        content={
+            "status": "error",
+            "error_code": "DATABASE_ERROR",
+            "message": f"데이터베이스 오류가 발생했습니다: {str(exc).split(chr(10))[0]}",
+            "data": None,
+        },
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    field_errors = []
+    for err in exc.errors():
+        loc = err.get("loc", [])
+        # Skip the first element if it's 'body'/'query'/'path'
+        field_parts = [str(p) for p in loc if p not in ("body", "query", "path")]
+        field_name = ".".join(field_parts) if field_parts else "unknown"
+        field_errors.append({"field": field_name, "message": err.get("msg", ""), "type": err.get("type", "")})
+
+    field_names = ", ".join(e["field"] for e in field_errors)
+    message = f"입력값 검증 실패: {field_names}" if field_names else "요청 값 검증에 실패했습니다."
+
     return ORJSONResponse(
         status_code=422,
         content={
             "status": "error",
             "error_code": "REQUEST_VALIDATION_ERROR",
-            "message": "요청 값 검증에 실패했습니다.",
-            "data": exc.errors(),
+            "message": message,
+            "data": field_errors,
         },
     )
 

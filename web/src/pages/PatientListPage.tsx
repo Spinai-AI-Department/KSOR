@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { Search, ChevronDown, Edit, MoreHorizontal, Plus, X, Calendar } from "lucide-react";
 import { patientService, type Patient as ApiPatient } from "../api/patients";
 import { dashboardService } from "../api/dashboard";
+import { ApiValidationError, translateValidationMsg } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { ConfirmDialog } from "@/components/ui/toast-modal";
 
@@ -12,14 +13,19 @@ type TabType = "list" | "complication";
 interface Patient {
   id: string;
   caseId: string;
+  registrationId: string;
   name: string;
-  age: number;
-  gender: "M" | "F";
+  genderAge: string;
+  visitDate: string;
+  surgeryDate: string | null;
+  diagnosisCode: string | null;
+  procedureCode: string | null;
   preOp: FollowUpStatus;
   m1: FollowUpStatus;
   m3: FollowUpStatus;
   m6: FollowUpStatus;
   yr1: FollowUpStatus;
+  followupTimepoints: string[];
 }
 
 const followUpPeriods = ["전체", "Pre-op", "1개월", "3개월", "6개월", "1년"];
@@ -36,6 +42,26 @@ function StatusBadge({ status }: { status: FollowUpStatus }) {
       {status}
     </span>
   );
+}
+
+const TIMEPOINT_CODE_MAP: Record<string, string> = {
+  preOp: "PRE_OP", m1: "POST_1M", m3: "POST_3M", m6: "POST_6M", yr1: "POST_1Y",
+};
+
+function FollowUpCell({ status, timepointKey, followupTimepoints }: {
+  status: FollowUpStatus;
+  timepointKey: string;
+  followupTimepoints: string[];
+}) {
+  const code = TIMEPOINT_CODE_MAP[timepointKey];
+  const isScheduled = followupTimepoints.includes(code);
+
+  // Not scheduled and no activity → show dash
+  if (!isScheduled && status === "Not Due") {
+    return <span className="text-gray-300">—</span>;
+  }
+
+  return <StatusBadge status={status} />;
 }
 
 function RecentFUStatusBadge({ status }: { status: string }) {
@@ -55,6 +81,7 @@ function RecentFUStatusBadge({ status }: { status: string }) {
 function PatientListTab() {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchId, setSearchId] = useState("");
   const [searchName, setSearchName] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState("전체");
@@ -109,25 +136,20 @@ function PatientListTab() {
       setSuccessMsg('AlimTalk이 성공적으로 발송되었습니다.');
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err) {
-      setAlimtalkError(err instanceof Error ? err.message : 'AlimTalk 발송에 실패했습니다.');
+      if (err instanceof ApiValidationError) {
+        const labelMap: Record<string, string> = { timepoint_code: '추적 관찰 시점', expires_in_days: '만료일' };
+        const labels = err.fields.map(fe => `${labelMap[fe.field] ?? fe.field} — ${translateValidationMsg(fe.message)}`);
+        setAlimtalkError(`다음 항목을 확인해주세요: ${labels.join(', ')}`);
+      } else {
+        setAlimtalkError(err instanceof Error ? err.message : 'AlimTalk 발송에 실패했습니다.');
+      }
     } finally {
       setSending(false);
     }
   };
 
   const fetchPatients = useCallback(async () => {
-    if (!token) {
-      const demoPatients: Patient[] = [
-        { id: "KS-2401-001", caseId: "KS-2401-001", name: "K**", age: 45, gender: "M", preOp: "Completed", m1: "Completed", m3: "Pending", m6: "Not Due", yr1: "Not Due" },
-        { id: "KS-2401-002", caseId: "KS-2401-002", name: "L**", age: 52, gender: "F", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Pending", yr1: "Not Due" },
-        { id: "KS-2401-003", caseId: "KS-2401-003", name: "P**", age: 38, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Pending" },
-        { id: "KS-2401-004", caseId: "KS-2401-004", name: "C**", age: 61, gender: "F", preOp: "Completed", m1: "Pending", m3: "Not Due", m6: "Not Due", yr1: "Not Due" },
-        { id: "KS-2401-005", caseId: "KS-2401-005", name: "J**", age: 33, gender: "M", preOp: "Completed", m1: "Completed", m3: "Completed", m6: "Completed", yr1: "Completed" },
-      ];
-      setPatients(demoPatients);
-      setTotal(demoPatients.length);
-      return;
-    }
+    if (!token) return;
     setListLoading(true);
     try {
       const keyword = [searchId, searchName].filter(Boolean).join(' ').trim() || undefined;
@@ -142,11 +164,6 @@ function PatientListTab() {
       );
       // Map ApiPatient to local Patient type
       setPatients(res.items.map((p: ApiPatient) => {
-        // parse "M / 45" or "F / -"
-        const [rawGender, rawAge] = p.genderAge.split('/').map(s => s.trim());
-        const gender = (rawGender === 'F' ? 'F' : 'M') as 'M' | 'F';
-        const age = rawAge && rawAge !== '-' ? parseInt(rawAge, 10) : 0;
-
         // Map prom_alimtalk timepoint statuses to follow-up columns
         const mapTimepointStatus = (timepointCode: string): FollowUpStatus => {
           const prom = p.promAlimtalk as Record<string, unknown>;
@@ -184,13 +201,19 @@ function PatientListTab() {
           return 'Not Due';
         };
 
+        const prom = p.promAlimtalk as Record<string, unknown>;
+        const followupTimepoints = (prom?.followup_timepoints as string[] | undefined) ?? [];
+
         return {
-          id: p.id, caseId: p.caseId, name: p.name, age, gender,
+          id: p.id, caseId: p.caseId, registrationId: p.registrationId, name: p.name,
+          genderAge: p.genderAge, visitDate: p.visitDate,
+          surgeryDate: p.surgeryDate, diagnosisCode: p.diagnosisCode, procedureCode: p.procedureCode,
           preOp: mapTimepointStatus('PRE_OP'),
           m1: mapTimepointStatus('POST_1M'),
           m3: mapTimepointStatus('POST_3M'),
           m6: mapTimepointStatus('POST_6M'),
           yr1: mapTimepointStatus('POST_1Y'),
+          followupTimepoints,
         };
       }));
       setTotal(res.total);
@@ -203,18 +226,20 @@ function PatientListTab() {
 
   useEffect(() => { fetchPatients(); }, [fetchPatients]);
 
+  // Show success toast when navigated back from surgery-entry after save
+  useEffect(() => {
+    if ((location.state as { saved?: boolean } | null)?.saved) {
+      setSuccessMsg('저장되었습니다.');
+      setTimeout(() => setSuccessMsg(null), 1000);
+      // Clear the state so it doesn't re-trigger on refresh
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
+
   const [recentFU, setRecentFU] = useState<{ id: string; name: string; status: string; date: string }[]>([]);
 
   useEffect(() => {
-    if (!token) {
-      setRecentFU([
-        { id: "KS-2401-001", name: "K** (1개월)", status: "입력 완료", date: "2024-12-15" },
-        { id: "KS-2401-002", name: "L** (6개월)", status: "대기 중", date: "2024-12-14" },
-        { id: "KS-2401-004", name: "C** (Pre-op)", status: "입력 완료", date: "2024-12-13" },
-        { id: "KS-2401-003", name: "P** (1년)", status: "지연", date: "2024-12-10" },
-      ]);
-      return;
-    }
+    if (!token) return;
     dashboardService.getRecentFollowups(token).then((data) => {
       const statusMap: Record<string, string> = {
         SUBMITTED: '입력 완료', COMPLETED: '입력 완료',
@@ -222,7 +247,7 @@ function PatientListTab() {
         OVERDUE: '지연', EXPIRED: '지연',
       };
       setRecentFU(data.map(fu => ({
-        id: fu.registration_no,
+        id: fu.registration_id,
         name: `${fu.patient_initial} (${fu.timepoint})`,
         status: statusMap[fu.status] ?? fu.status,
         date: fu.date,
@@ -236,13 +261,7 @@ function PatientListTab() {
 
   const executeDelete = async () => {
     if (!deleteConfirm) return;
-    if (!token) {
-      // Demo mode: remove from local state
-      setPatients(prev => prev.filter(p => p.caseId !== deleteConfirm.caseId));
-      setTotal(prev => Math.max(0, prev - 1));
-      setDeleteConfirm(null);
-      return;
-    }
+    if (!token) return;
     try {
       await patientService.delete(deleteConfirm.caseId, token);
       setDeleteConfirm(null);
@@ -268,21 +287,7 @@ function PatientListTab() {
       return;
     }
     setFormErrors({});
-    if (!token) {
-      // Demo mode: add to local state
-      const demoId = `KS-DEMO-${String(patients.length + 1).padStart(3, '0')}`;
-      const birthYear = new Date(newForm.birth_date).getFullYear();
-      const age = new Date().getFullYear() - birthYear;
-      const newPatient: Patient = {
-        id: demoId, caseId: demoId, name: `${newForm.name.charAt(0)}**`, age, gender: newForm.gender,
-        preOp: "Not Due", m1: "Not Due", m3: "Not Due", m6: "Not Due", yr1: "Not Due",
-      };
-      setPatients(prev => [newPatient, ...prev]);
-      setTotal(prev => prev + 1);
-      setShowNewPatientModal(false);
-      setNewForm({ name: "", birth_date: "", gender: "M" });
-      return;
-    }
+    if (!token) return;
     setCreating(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -301,7 +306,36 @@ function PatientListTab() {
       setNewForm({ name: "", birth_date: "", gender: "M" });
       fetchPatients();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : '환자 등록에 실패했습니다.');
+      if (err instanceof ApiValidationError) {
+        // backend field → data-field attribute (Korean labels used in modal)
+        const fieldMap: Record<string, string> = {
+          patient_initial: '이름', sex: '성별', birth_date: '생년월일', birth_year: '생년월일', visit_date: '내원일',
+        };
+        // backend field → user-friendly Korean label for error message
+        const labelMap: Record<string, string> = {
+          patient_initial: '환자 이름', sex: '성별', birth_date: '생년월일', birth_year: '출생연도', visit_date: '내원일',
+        };
+        const errors: Record<string, string> = {};
+        const errorLabels: string[] = [];
+        for (const fe of err.fields) {
+          const mapped = fieldMap[fe.field] ?? fe.field;
+          const label = labelMap[fe.field] ?? fe.field;
+          errors[mapped] = `${label}: ${translateValidationMsg(fe.message)}`;
+          errorLabels.push(label);
+        }
+        setFormErrors(errors);
+        setCreateError(`다음 항목을 확인해주세요: ${errorLabels.join(', ')}`);
+        setTimeout(() => {
+          const firstField = Object.keys(errors)[0];
+          const el = document.querySelector<HTMLElement>(`[data-field="${firstField}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (el instanceof HTMLInputElement) el.focus();
+          }
+        }, 0);
+      } else {
+        setCreateError(err instanceof Error ? err.message : '환자 등록에 실패했습니다.');
+      }
     } finally {
       setCreating(false);
     }
@@ -329,7 +363,7 @@ function PatientListTab() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Patient ID"
+            placeholder="등록번호"
             value={searchId}
             onChange={(e) => setSearchId(e.target.value)}
             className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
@@ -338,7 +372,7 @@ function PatientListTab() {
         <div className="relative">
           <input
             type="text"
-            placeholder="Name"
+            placeholder="이름"
             value={searchName}
             onChange={(e) => setSearchName(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
@@ -350,7 +384,7 @@ function PatientListTab() {
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 focus:outline-none w-48"
           >
             <span className="flex-1 text-left text-gray-600">
-              {selectedPeriod === "전체" ? "Follow-up Period" : selectedPeriod}
+              {selectedPeriod === "전체" ? "팔로업 기간" : selectedPeriod}
             </span>
             <ChevronDown className="w-4 h-4 text-gray-400" />
           </button>
@@ -375,26 +409,30 @@ function PatientListTab() {
           className="ml-auto flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          New Patient
+          신규 등록
         </button>
       </div>
 
       {/* Patient Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px]">
+          <table className="w-full min-w-[1200px]">
             <thead>
               <tr className="border-b border-gray-200 bg-white">
-                <th className="text-left px-5 py-3.5 text-sm text-gray-700">Patient ID</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">Name</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">Age</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">Gender</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">Pre-op Status</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">1m Status</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">3m Status</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">6m Status</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">1yr Status</th>
-                <th className="text-left px-4 py-3.5 text-sm text-gray-700">Actions</th>
+                <th className="text-left px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">번호</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">환자 번호</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">이름</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">성별/나이</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">내원일</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">수술일</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">진단코드</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">수술코드</th>
+                <th className="text-center px-3 py-3.5 text-sm text-gray-700 whitespace-nowrap">Pre-op</th>
+                <th className="text-center px-3 py-3.5 text-sm text-gray-700 whitespace-nowrap">1M</th>
+                <th className="text-center px-3 py-3.5 text-sm text-gray-700 whitespace-nowrap">3M</th>
+                <th className="text-center px-3 py-3.5 text-sm text-gray-700 whitespace-nowrap">6M</th>
+                <th className="text-center px-3 py-3.5 text-sm text-gray-700 whitespace-nowrap">1Y</th>
+                <th className="text-left px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">관리</th>
               </tr>
             </thead>
             <tbody>
@@ -403,20 +441,24 @@ function PatientListTab() {
                   key={`${patient.id}-${index}`}
                   className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-5 py-3.5 text-sm text-gray-800">{patient.id}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-800">{patient.name}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-800">{patient.age}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-800">{patient.gender}</td>
-                  <td className="px-4 py-3.5"><StatusBadge status={patient.preOp} /></td>
-                  <td className="px-4 py-3.5"><StatusBadge status={patient.m1} /></td>
-                  <td className="px-4 py-3.5"><StatusBadge status={patient.m3} /></td>
-                  <td className="px-4 py-3.5"><StatusBadge status={patient.m6} /></td>
-                  <td className="px-4 py-3.5"><StatusBadge status={patient.yr1} /></td>
-                  <td className="px-4 py-3.5">
+                  <td className="text-left px-5 py-3.5 text-sm text-gray-800 font-mono whitespace-nowrap">{(page - 1) * PAGE_SIZE + index + 1}</td>
+                  <td className="text-left px-4 py-3.5 text-sm text-gray-800 font-mono whitespace-nowrap">{patient.id}</td>
+                  <td className="text-left px-4 py-3.5 text-sm text-gray-800 whitespace-nowrap">{patient.name}</td>
+                  <td className="text-left px-4 py-3.5 text-sm text-gray-800 whitespace-nowrap">{patient.genderAge}</td>
+                  <td className="text-left px-4 py-3.5 text-sm text-gray-800 whitespace-nowrap">{patient.visitDate || "-"}</td>
+                  <td className="text-left px-4 py-3.5 text-sm text-gray-800 whitespace-nowrap">{patient.surgeryDate || "-"}</td>
+                  <td className="text-left px-4 py-3.5 text-sm text-gray-800 whitespace-nowrap">{patient.diagnosisCode || "-"}</td>
+                  <td className="text-left px-4 py-3.5 text-sm text-gray-800 whitespace-nowrap">{patient.procedureCode || "-"}</td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.preOp} timepointKey="preOp" followupTimepoints={patient.followupTimepoints} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m1} timepointKey="m1" followupTimepoints={patient.followupTimepoints} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m3} timepointKey="m3" followupTimepoints={patient.followupTimepoints} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m6} timepointKey="m6" followupTimepoints={patient.followupTimepoints} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.yr1} timepointKey="yr1" followupTimepoints={patient.followupTimepoints} /></td>
+                  <td className="text-left px-4 py-3.5">
                     <div className="flex items-center gap-2 relative">
                       <button
                         className="p-1 text-gray-400 hover:text-gray-700 rounded"
-                        onClick={() => navigate(`/surgery-entry?patient=${patient.caseId}`)}
+                        onClick={() => navigate(`/surgery-entry?patient=${patient.caseId}`, { state: { patient } })}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -434,13 +476,13 @@ function PatientListTab() {
                         <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
                           <button
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
-                            onClick={() => { setOpenActionMenu(null); navigate(`/surgery-entry?patient=${patient.caseId}&mode=view`); }}
+                            onClick={() => { setOpenActionMenu(null); navigate(`/surgery-entry?patient=${patient.caseId}&mode=view`, { state: { patient } }); }}
                           >
                             상세 보기
                           </button>
                           <button
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            onClick={() => { setOpenActionMenu(null); navigate(`/surgery-entry?patient=${patient.caseId}&mode=followup`); }}
+                            onClick={() => { setOpenActionMenu(null); navigate(`/surgery-entry?patient=${patient.caseId}&mode=followup`, { state: { patient } }); }}
                           >
                             F/U 입력
                           </button>
@@ -464,7 +506,7 @@ function PatientListTab() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-5 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={14} className="px-5 py-10 text-center text-sm text-gray-400">
                     검색 결과가 없습니다.
                   </td>
                 </tr>
@@ -581,6 +623,7 @@ function PatientListTab() {
                     type="text"
                     data-field="이름"
                     placeholder="환자 이름"
+                    maxLength={20}
                     value={newForm.name}
                     onChange={(e) => {
                       setNewForm((f) => ({ ...f, name: e.target.value }));
@@ -594,6 +637,7 @@ function PatientListTab() {
                   <label className="block text-sm text-gray-600 mb-1">생년월일 (Birth Date)</label>
                   <input
                     type="date"
+                    max="9999-12-31"
                     data-field="생년월일"
                     value={newForm.birth_date}
                     onChange={(e) => {
@@ -692,15 +736,98 @@ function ComplicationTab() {
     setComplications((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handlePatientLookup = () => {
-    const id = lookupId.trim();
-    if (!id) {
-      setLookupMessage("Patient ID를 입력해주세요.");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResults, setLookupResults] = useState<{ caseId: string; patientId: string; name: string; genderAge: string }[]>([]);
+  const [patientInfo, setPatientInfo] = useState<{ genderAge: string; surgeryDate: string | null; diagnosisCode: string | null; procedureCode: string | null } | null>(null);
+
+  const loadCaseDetail = async (caseId: string) => {
+    if (!token) return;
+    try {
+      const detail = await patientService.getDetail(caseId, token);
+      // Fill patient info
+      // genderAge isn't in detail, but we can build it from sex + birth_year
+      const age = detail.birth_year ? new Date().getFullYear() - detail.birth_year : null;
+      setPatientInfo({
+        genderAge: `${detail.sex || '-'} / ${age ?? '-'}`,
+        surgeryDate: detail.surgery_date,
+        diagnosisCode: detail.diagnosis_code,
+        procedureCode: detail.procedure_code,
+      });
+      // Fill outcome form if exists
+      const out = detail.outcome_form;
+      if (out) {
+        if (out.complication_yn != null) {
+          // Parse complication_detail JSON for extended fields
+          let ext: Record<string, unknown> = {};
+          if (out.complication_detail) {
+            try { ext = JSON.parse(out.complication_detail); } catch { /* plain text */ }
+          }
+          // Complications checkboxes
+          if (Array.isArray(ext.complications)) {
+            const compKeys = ext.complications as string[];
+            setComplications({
+              duralTear: compKeys.includes('duralTear'),
+              nerveInjury: compKeys.includes('nerveInjury'),
+              hematoma: compKeys.includes('hematoma'),
+              ssiSuperficial: compKeys.includes('ssiSuperficial'),
+              ssiDeep: compKeys.includes('ssiDeep'),
+              nonUnion: compKeys.includes('nonUnion'),
+              instrumentBreakage: compKeys.includes('instrumentBreakage'),
+              instrumentDisplacement: compKeys.includes('instrumentDisplacement'),
+              otherMedical: compKeys.includes('otherMedical'),
+            });
+          }
+          if (ext.complication_severity) setSelectedSeverity(ext.complication_severity as string);
+          if (ext.complication_date) setOccurrenceDate(ext.complication_date as string);
+          if (ext.conversion_yn != null) setIsConversion(ext.conversion_yn as boolean);
+          if (ext.conversion_reason) setConversionReason(ext.conversion_reason as string);
+          if (ext.reoperation_date) setReoperationDate(ext.reoperation_date as string);
+          // complication_detail as plain symptoms text (if not JSON or has 'text' key)
+          if (typeof ext.text === 'string') setSymptoms(ext.text);
+          else if (!ext.complications && typeof out.complication_detail === 'string') setSymptoms(out.complication_detail);
+        }
+        if (out.reoperation_yn != null) setIsReoperation(out.reoperation_yn);
+      }
+    } catch { /* detail load failed — form stays empty */ }
+  };
+
+  const handlePatientLookup = async () => {
+    const keyword = [lookupId.trim(), lookupName.trim()].filter(Boolean).join(' ');
+    if (!keyword) {
+      setLookupMessage("환자 번호 또는 이름을 입력해주세요.");
       setSelectedCaseId(null);
+      setLookupResults([]);
       return;
     }
-    setSelectedCaseId(id);
-    setLookupMessage(`환자 ${id} 선택됨`);
+    if (!token) return;
+    setLookupLoading(true);
+    setLookupMessage(null);
+    setLookupResults([]);
+    try {
+      const res = await patientService.list({ keyword, page: 1, size: 10 }, token);
+      if (res.items.length === 0) {
+        setLookupMessage("일치하는 환자가 없습니다.");
+        setSelectedCaseId(null);
+      } else if (res.items.length === 1) {
+        const p = res.items[0];
+        setSelectedCaseId(p.caseId);
+        setLookupName(p.name);
+        setLookupId(p.id);
+        setLookupMessage(`${p.name} (${p.id}) 선택됨`);
+        loadCaseDetail(p.caseId);
+      } else {
+        setLookupResults(res.items.map(p => ({
+          caseId: p.caseId, patientId: p.id,
+          name: p.name, genderAge: p.genderAge,
+        })));
+        setLookupMessage(`${res.items.length}명의 환자가 검색되었습니다. 선택해주세요.`);
+      }
+    } catch (err) {
+      setLookupMessage(err instanceof Error ? err.message : '환자 조회에 실패했습니다.');
+      setSelectedCaseId(null);
+    } finally {
+      setLookupLoading(false);
+    }
   };
 
   const handleResetForm = () => {
@@ -708,6 +835,8 @@ function ComplicationTab() {
     setLookupName("");
     setSelectedCaseId(null);
     setLookupMessage(null);
+    setLookupResults([]);
+    setPatientInfo(null);
     setIsConversion(false);
     setIsReoperation(false);
     setConversionReason("");
@@ -752,7 +881,40 @@ function ComplicationTab() {
       }, token);
       setSaveSuccess(true);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "저장에 실패했습니다.");
+      if (err instanceof ApiValidationError) {
+        const labelMap: Record<string, string> = {
+          complications: '합병증 항목', complication_severity: '합병증 중증도',
+          complication_date: '합병증 발생일', complication_detail: '상세 증상',
+          complication_yn: '합병증 여부', conversion_yn: '수술 전환 여부',
+          conversion_reason: '전환 사유', reoperation_yn: '재수술 여부',
+          reoperation_date: '재수술 시행일', readmission_30d_yn: '30일 재입원',
+          final_note: '최종 메모',
+        };
+        const fieldMap: Record<string, string> = {
+          complication_date: 'occurrenceDate', complication_detail: 'symptoms',
+          conversion_reason: 'conversionReason', reoperation_date: 'reoperationDate',
+          complication_severity: 'severity',
+        };
+        const errorLabels: string[] = [];
+        let firstDataField: string | null = null;
+        for (const fe of err.fields) {
+          const label = labelMap[fe.field] ?? fe.field;
+          errorLabels.push(`${label} — ${translateValidationMsg(fe.message)}`);
+          if (!firstDataField) firstDataField = fieldMap[fe.field] ?? null;
+        }
+        setSaveError(`다음 항목을 확인해주세요: ${errorLabels.join(', ')}`);
+        if (firstDataField) {
+          setTimeout(() => {
+            const el = document.querySelector<HTMLElement>(`[data-field="${firstDataField}"]`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              if (el instanceof HTMLInputElement) el.focus();
+            }
+          }, 0);
+        }
+      } else {
+        setSaveError(err instanceof Error ? err.message : "저장에 실패했습니다.");
+      }
     } finally {
       setSaving(false);
     }
@@ -767,12 +929,13 @@ function ComplicationTab() {
         <h2 className="text-base text-gray-900 mb-4">대상 환자 선택</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm text-gray-600 mb-1.5">Patient ID</label>
+            <label className="block text-sm text-gray-600 mb-1.5">환자 번호</label>
             <input
               type="text"
-              placeholder="예: 201933070"
+              placeholder="예: KSOR-250331-001"
               value={lookupId}
               onChange={(e) => setLookupId(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handlePatientLookup()}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -783,22 +946,62 @@ function ComplicationTab() {
               placeholder="환자 이름"
               value={lookupName}
               onChange={(e) => setLookupName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handlePatientLookup()}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex items-end gap-2">
             <button
               onClick={handlePatientLookup}
-              className="px-5 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
+              disabled={lookupLoading}
+              className="px-5 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
-              환자 조회
+              {lookupLoading ? '조회 중…' : '환자 조회'}
             </button>
             {lookupMessage && (
               <span className={`text-sm ${selectedCaseId ? 'text-green-600' : 'text-red-600'}`}>{lookupMessage}</span>
             )}
           </div>
         </div>
+        {/* Search results list */}
+        {lookupResults.length > 0 && (
+          <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+            {lookupResults.map((p) => (
+              <button
+                key={p.caseId}
+                onClick={() => {
+                  setSelectedCaseId(p.caseId);
+                  setLookupName(p.name);
+                  setLookupId(p.patientId);
+                  setLookupMessage(`${p.name} (${p.patientId}) 선택됨`);
+                  setLookupResults([]);
+                  loadCaseDetail(p.caseId);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 border-b border-gray-100 last:border-b-0 flex justify-between items-center ${
+                  selectedCaseId === p.caseId ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                }`}
+              >
+                <span>{p.name}</span>
+                <span className="text-xs text-gray-500">{p.patientId} · {p.genderAge}</span>
+
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Patient Info Summary */}
+      {selectedCaseId && patientInfo && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <h3 className="text-sm font-medium text-blue-800 mb-2">선택된 환자 정보</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div><span className="text-blue-600">이름:</span> <span className="text-gray-900">{lookupName}</span></div>
+            <div><span className="text-blue-600">성별/나이:</span> <span className="text-gray-900">{patientInfo.genderAge}</span></div>
+            <div><span className="text-blue-600">수술일:</span> <span className="text-gray-900">{patientInfo.surgeryDate || '-'}</span></div>
+            <div><span className="text-blue-600">진단:</span> <span className="text-gray-900">{patientInfo.diagnosisCode || '-'}</span></div>
+          </div>
+        </div>
+      )}
 
       {/* Conversion + Reoperation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -823,6 +1026,7 @@ function ComplicationTab() {
           <div>
             <input
               type="text"
+              data-field="conversionReason"
               value={conversionReason}
               onChange={(e) => setConversionReason(e.target.value)}
               placeholder="전환 사유 (Reason for conversion)"
@@ -853,6 +1057,8 @@ function ComplicationTab() {
           <div className="relative">
             <input
               type="date"
+              max="9999-12-31"
+              data-field="reoperationDate"
               value={reoperationDate}
               onChange={(e) => setReoperationDate(e.target.value)}
               disabled={!isReoperation}
@@ -966,6 +1172,8 @@ function ComplicationTab() {
             <div className="relative">
               <input
                 type="date"
+                max="9999-12-31"
+                data-field="occurrenceDate"
                 value={occurrenceDate}
                 onChange={(e) => setOccurrenceDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -981,6 +1189,7 @@ function ComplicationTab() {
             </label>
             <input
               type="text"
+              data-field="symptoms"
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
               placeholder="증상 및 처치 내용"

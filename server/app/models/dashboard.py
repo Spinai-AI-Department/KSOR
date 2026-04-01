@@ -80,7 +80,7 @@ class SatisfactionScoreItem(APIModel):
 
 class PatientOutcomePoint(APIModel):
     case_id: str
-    registration_no: str
+    registration_id: str
     preop_odi: float | None = None
     postop_odi: float | None = None
     improvement: float | None = None
@@ -107,7 +107,7 @@ class StatisticsResponse(APIModel):
 class RecentFollowupItem(APIModel):
     patient_id: str
     case_id: str
-    registration_no: str
+    registration_id: str
     patient_initial: str
     timepoint: str
     status: str

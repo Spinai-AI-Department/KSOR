@@ -301,7 +301,8 @@ async def get_my_profile(conn: AsyncConnection, user_id) -> MyProfileResponse:
         conn,
         """
         SELECT user_id, login_id, full_name, hospital_code, role_code::text AS role_code,
-               email, phone, is_first_login, last_login_at
+               email, phone, department, specialty, license_number,
+               is_first_login, last_login_at
           FROM auth.user_account
          WHERE user_id = %s
         """,
@@ -317,6 +318,9 @@ async def get_my_profile(conn: AsyncConnection, user_id) -> MyProfileResponse:
         role=row["role_code"],
         email=row["email"],
         phone=row["phone"],
+        department=row["department"],
+        specialty=row["specialty"],
+        license_number=row["license_number"],
         is_first_login=row["is_first_login"],
         last_login_at=row["last_login_at"],
     )

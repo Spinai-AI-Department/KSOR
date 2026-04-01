@@ -63,7 +63,7 @@ export interface SatisfactionScore {
 
 export interface PatientOutcomePoint {
   case_id: string
-  registration_no: string
+  registration_id: string
   preop_odi: number | null
   postop_odi: number | null
   improvement: number | null
@@ -90,7 +90,7 @@ export interface StatisticsData {
 export interface RecentFollowup {
   patient_id: string
   case_id: string
-  registration_no: string
+  registration_id: string
   patient_initial: string
   timepoint: string
   status: string

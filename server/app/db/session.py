@@ -35,6 +35,29 @@ async def clear_app_context(conn) -> None:
         await cur.execute("SELECT app_private.clear_context(true)")
 
 
+async def get_db_auth(request: Request) -> AsyncIterator:
+    """DB dependency for unauthenticated auth routes (login, refresh, reset-password).
+
+    Sets app.role = 'SYSTEM' so that RLS policies on auth.user_account and
+    auth.auth_session allow the necessary SELECT/INSERT/UPDATE operations
+    without a real authenticated principal.
+    """
+    async with db.pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT app_private.set_context(%s, %s, %s, %s, %s, true)",
+                (None, None, "SYSTEM", None, None),
+            )
+        try:
+            yield conn
+        finally:
+            try:
+                async with conn.cursor() as cur:
+                    await cur.execute("SELECT app_private.clear_context(true)")
+            except Exception:
+                pass
+
+
 async def get_db(request: Request) -> AsyncIterator:
     if not hasattr(request.state, "principal"):
         token = None

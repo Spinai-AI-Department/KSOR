@@ -63,9 +63,9 @@ async def list_cases(
     filters = ["case_status != 'ARCHIVED'"]
     params: list[Any] = []
     if keyword:
-        filters.append("(registration_no ILIKE %s OR patient_initial ILIKE %s)")
+        filters.append("(registration_id ILIKE %s OR patient_initial ILIKE %s OR patient_id::text ILIKE %s)")
         pattern = f"%{keyword}%"
-        params.extend([pattern, pattern])
+        params.extend([pattern, pattern, pattern])
     if procedure_code:
         filters.append("procedure_code = %s")
         params.append(procedure_code)
@@ -73,8 +73,19 @@ async def list_cases(
         filters.append("diagnosis_code = %s")
         params.append(diagnosis_code)
     if status_filter:
-        filters.append("(initial_db_status = %s OR extended_db_status = %s OR outcome_db_status = %s)")
-        params.extend([status_filter, status_filter, status_filter])
+        # Timepoint codes (PRE_OP, POST_1M, ...) filter by PROM request existence
+        timepoint_codes = {"PRE_OP", "POST_1M", "POST_3M", "POST_6M", "POST_1Y",
+                           "PREOP", "POSTOP_1M", "POSTOP_3M", "POSTOP_6M", "POSTOP_12M", "POSTOP_24M"}
+        if status_filter in timepoint_codes:
+            filters.append(
+                "case_id IN (SELECT pr.case_id FROM survey.prom_request pr "
+                "WHERE pr.timepoint_code = %s)"
+            )
+            params.append(status_filter)
+        else:
+            # DB status values (WAITING, IN_PROGRESS, COMPLETED)
+            filters.append("(initial_db_status = %s OR extended_db_status = %s OR outcome_db_status = %s)")
+            params.extend([status_filter, status_filter, status_filter])
 
     where_sql = " AND ".join(filters)
     total = int(
@@ -92,7 +103,7 @@ async def list_cases(
         SELECT
             vcs.case_id,
             vcs.patient_id,
-            vcs.registration_no,
+            vcs.registration_id,
             vcs.patient_initial,
             vcs.sex,
             vcs.birth_year,
@@ -120,6 +131,7 @@ async def list_cases(
     # Fetch per-timepoint PROM status for all cases in this page
     case_ids = [row["case_id"] for row in rows] if rows else []
     prom_by_case: dict[Any, dict[str, str]] = {}
+    fu_tp_by_case: dict[Any, list[str]] = {}
     if case_ids:
         prom_rows = await fetch_all(
             conn,
@@ -139,6 +151,29 @@ async def list_cases(
             status = pr["token_status"]
             prom_by_case.setdefault(cid, {})[tp] = status
 
+        # Fetch followup_timepoints from additional_attributes
+        fu_rows = await fetch_all(
+            conn,
+            """
+            SELECT case_id, additional_attributes->'followup_timepoints' AS fu_tp
+            FROM clinical.case_initial_form
+            WHERE case_id = ANY(%s)
+              AND additional_attributes ? 'followup_timepoints'
+            """,
+            (case_ids,),
+        )
+        # Map legacy display labels to codes
+        _label_to_code = {
+            "Pre-op": "PRE_OP", "1개월 (1m)": "POST_1M", "3개월 (3m)": "POST_3M",
+            "6개월 (6m)": "POST_6M", "1년 (1yr)": "POST_1Y",
+        }
+        for fr in (fu_rows or []):
+            tp_list = fr["fu_tp"]
+            if isinstance(tp_list, list):
+                fu_tp_by_case[fr["case_id"]] = list(dict.fromkeys(
+                    _label_to_code.get(tp, tp) for tp in tp_list
+                ))
+
     items: list[PatientListItem] = []
     no = total - offset
     for row in rows:
@@ -150,11 +185,16 @@ async def list_cases(
 
         # Build per-timepoint follow-up status
         case_prom = prom_by_case.get(row["case_id"], {})
+        selected_timepoints = fu_tp_by_case.get(row["case_id"], [])
         followup_status: dict[str, str] = {}
         for tp_code in ("PRE_OP", "POST_1M", "POST_3M", "POST_6M", "POST_1Y"):
             token_status = case_prom.get(tp_code)
             if token_status is None:
-                followup_status[tp_code] = "NOT_REQUESTED"
+                # If this timepoint was selected in surgery-entry, mark as PENDING
+                if tp_code in selected_timepoints:
+                    followup_status[tp_code] = "PENDING"
+                else:
+                    followup_status[tp_code] = "NOT_REQUESTED"
             elif token_status in ("COMPLETED", "SUBMITTED"):
                 followup_status[tp_code] = "COMPLETED"
             elif token_status in ("READY", "SENT", "OPENED", "VERIFIED"):
@@ -169,7 +209,7 @@ async def list_cases(
                 patient_id=row["patient_id"],
                 case_id=row["case_id"],
                 no=no,
-                registration_no=row["registration_no"],
+                registration_id=row["registration_id"],
                 patient_initial=row["patient_initial"],
                 gender_age=gender_age,
                 visit_date=row["visit_date"],
@@ -187,6 +227,7 @@ async def list_cases(
                     "last_sent_at": row["latest_prom_sent_at"],
                     "prom_status": row["latest_prom_status"] or "WAITING",
                     "followup_status": followup_status,
+                    "followup_timepoints": selected_timepoints,
                 },
             )
         )
@@ -204,20 +245,41 @@ async def list_cases(
 
 
 async def create_patient_case(conn: AsyncConnection, actor_user_id: UUID, payload: PatientCreateRequest) -> PatientCreateResponse:
+    import logging
+    _log = logging.getLogger(__name__)
+
+    hospital_code = await fetch_val(
+        conn,
+        "SELECT app_private.current_app_hospital_code()",
+    )
+    if not hospital_code:
+        raise ValidationError("병원 코드가 설정되지 않았습니다. 관리자에게 문의하세요.", error_code="HOSPITAL_CODE_MISSING")
+
+    _log.info(
+        "create_patient_case: hospital_code=%r (len=%d), patient_initial=%r (len=%d), sex=%r",
+        hospital_code, len(str(hospital_code)),
+        payload.patient_initial, len(payload.patient_initial),
+        payload.sex,
+    )
+
     patient_row = await fetch_one(
         conn,
         """
         INSERT INTO patient.patient (
-            patient_id, hospital_code, patient_initial, sex, birth_year, is_active, created_at, created_by, updated_at, updated_by
+            hospital_code, patient_initial, sex, birth_year, is_active, created_at, created_by, updated_at, updated_by
         ) VALUES (
-            gen_random_uuid(), app_private.current_app_hospital_code(), %s, %s::patient.sex_type, %s, true, now(), %s, now(), %s
+            %s, %s, %s::patient.sex_type, %s, true, now(), %s, now(), %s
         )
         RETURNING patient_id, hospital_code
         """,
-        (payload.patient_initial, payload.sex, payload.birth_year, str(actor_user_id), str(actor_user_id)),
+        (hospital_code, payload.patient_initial, payload.sex, payload.birth_year, str(actor_user_id), str(actor_user_id)),
     )
+    if not patient_row:
+        raise ValidationError("환자 등록에 실패했습니다. 권한을 확인해주세요.", error_code="PATIENT_INSERT_FAILED")
     patient_id = patient_row["patient_id"]
     hospital_code = patient_row["hospital_code"]
+
+    _log.info("create_patient_case: patient created, inserting identity...")
 
     await execute(
         conn,
@@ -250,21 +312,23 @@ async def create_patient_case(conn: AsyncConnection, actor_user_id: UUID, payloa
         ),
     )
 
+    _log.info("create_patient_case: identity created, inserting case_record...")
+
     case_row = await fetch_one(
         conn,
         """
         INSERT INTO clinical.case_record (
-            case_id, hospital_code, patient_id, registration_no,
+            case_id, hospital_code, patient_id, registration_id,
             consent_date, visit_date, surgery_date, diagnosis_code, procedure_code, spinal_region,
             surgeon_user_id, coordinator_user_id, case_status, is_locked, enrollment_source,
             created_at, created_by, updated_at, updated_by
         ) VALUES (
-            gen_random_uuid(), %s, %s, clinical.next_registration_no(%s, %s),
+            gen_random_uuid(), %s, %s, clinical.next_registration_id(%s, %s),
             %s, %s, %s, %s, %s, %s::clinical.spinal_region,
             %s, %s, 'DRAFT', false, 'WEB',
             now(), %s, now(), %s
         )
-        RETURNING case_id, registration_no
+        RETURNING case_id, registration_id
         """,
         (
             hospital_code,
@@ -283,10 +347,15 @@ async def create_patient_case(conn: AsyncConnection, actor_user_id: UUID, payloa
             str(actor_user_id),
         ),
     )
+    if not case_row:
+        raise ValidationError("케이스 등록에 실패했습니다.", error_code="CASE_INSERT_FAILED")
+
+    _log.info("create_patient_case: case_record created successfully")
+
     return PatientCreateResponse(
         patient_id=patient_id,
         case_id=case_row["case_id"],
-        registration_no=case_row["registration_no"],
+        registration_id=case_row["registration_id"],
     )
 
 
@@ -313,7 +382,7 @@ async def get_case_detail(conn: AsyncConnection, case_id: UUID) -> dict[str, Any
             cr.case_id,
             cr.hospital_code,
             cr.patient_id,
-            cr.registration_no,
+            cr.registration_id,
             p.patient_initial,
             p.sex::text AS sex,
             p.birth_year,
@@ -341,7 +410,8 @@ async def get_case_detail(conn: AsyncConnection, case_id: UUID) -> dict[str, Any
         """
         SELECT comorbidities, diagnosis_detail,
                symptom_duration_weeks::float AS symptom_duration_weeks,
-               baseline_neuro_deficit_yn, preop_medication_jsonb, preop_image_findings
+               baseline_neuro_deficit_yn, preop_medication_jsonb, preop_image_findings,
+               additional_attributes
         FROM clinical.case_initial_form
         WHERE case_id = %s
         """,
@@ -433,6 +503,8 @@ async def delete_case(conn: AsyncConnection, case_id: UUID, actor_user_id: UUID)
 
 async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: ClinicalUpdateRequest) -> dict[str, Any]:
     case_row = await _ensure_case_exists(conn, str(case_id))
+    if case_row["is_locked"]:
+        raise ForbiddenError(message="잠긴 케이스는 수정할 수 없습니다.", error_code="CASE_LOCKED")
     data = payload.model_dump(exclude_unset=True)
     if not data:
         raise ValidationError("수정할 값이 없습니다.")
@@ -452,7 +524,15 @@ async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: Clinica
     mapping_case = {"diagnosis_code", "procedure_code", "spinal_region", "surgery_date"}
     mapping_initial = {"comorbidities", "diagnosis_detail", "symptom_duration_weeks", "baseline_neuro_deficit_yn", "preop_medication_jsonb", "preop_image_findings"}
     mapping_extended = {"surgery_level", "approach_type", "laterality", "operation_minutes", "estimated_blood_loss_ml", "anesthesia_type", "implant_used_yn", "discharge_date", "hospital_stay_days", "adverse_events_jsonb", "intraop_note"}
+    # Fields stored in additional_attributes jsonb on case_initial_form
+    mapping_additional = {
+        "surgeon_name", "asa_class", "diagnosis_level", "myelopathy_yn",
+        "num_levels", "surgeon_experience_years", "antibiotic_prophylaxis_yn",
+        "cci_score", "endo_technique", "endo_device", "scope_angle",
+        "viz_quality", "conversion_yn", "reoperation_reason", "followup_timepoints",
+    }
 
+    additional_attrs: dict[str, Any] = {}
     for key, value in data.items():
         if key in mapping_case:
             case_updates[key] = value
@@ -460,6 +540,14 @@ async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: Clinica
             initial_updates[key] = value
         elif key in mapping_extended:
             extended_updates[key] = value
+        elif key in mapping_additional:
+            additional_attrs[key] = value
+
+    if additional_attrs:
+        import json as _json
+        additional_json = _json.dumps(additional_attrs, ensure_ascii=False)
+        # Merge into existing additional_attributes; handled separately in the UPSERT below
+        initial_updates["additional_attributes"] = additional_json
 
     if case_updates:
         set_sql, values = build_set_clause(case_updates)
@@ -472,7 +560,21 @@ async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: Clinica
     if len(initial_updates) > 3:
         insert_cols, insert_placeholders, insert_values = build_insert_clause(initial_updates)
         update_payload = {k: v for k, v in initial_updates.items() if k not in {"case_id", "hospital_code", "patient_id"}}
-        update_sql, update_values = build_set_clause(update_payload)
+        # For additional_attributes, merge with existing rather than replace
+        if "additional_attributes" in update_payload:
+            non_aa = {k: v for k, v in update_payload.items() if k != "additional_attributes"}
+            parts = []
+            merge_values: list[Any] = []
+            if non_aa:
+                set_sql_part, set_vals_part = build_set_clause(non_aa)
+                parts.append(set_sql_part)
+                merge_values.extend(set_vals_part)
+            parts.append("additional_attributes = COALESCE(clinical.case_initial_form.additional_attributes, '{}'::jsonb) || %s::jsonb")
+            merge_values.append(update_payload["additional_attributes"])
+            update_sql = ", ".join(parts)
+            update_values = merge_values
+        else:
+            update_sql, update_values = build_set_clause(update_payload)
         await execute(
             conn,
             f"""
@@ -508,15 +610,58 @@ async def update_clinical(conn: AsyncConnection, case_id: UUID, payload: Clinica
 
 async def update_outcome(conn: AsyncConnection, case_id: UUID, payload: OutcomeUpdateRequest) -> dict[str, Any]:
     case_row = await _ensure_case_exists(conn, str(case_id))
+    if case_row["is_locked"]:
+        raise ForbiddenError(message="잠긴 케이스는 수정할 수 없습니다.", error_code="CASE_LOCKED")
     data = payload.model_dump(exclude_unset=True)
     if not data:
         raise ValidationError("수정할 값이 없습니다.")
+
+    # Separate DB columns from extended complication fields
+    db_columns = {
+        "complication_yn", "complication_detail", "readmission_30d_yn",
+        "reoperation_yn", "surgeon_global_outcome", "return_to_work_yn",
+        "final_note", "outcome_completed_at",
+    }
+    extended_keys = {
+        "complications", "complication_severity", "complication_date",
+        "conversion_yn", "conversion_reason", "reoperation_date",
+    }
+
+    db_data: dict[str, Any] = {}
+    ext_data: dict[str, Any] = {}
+    for k, v in data.items():
+        if k in db_columns:
+            db_data[k] = v
+        elif k in extended_keys:
+            ext_data[k] = v.isoformat() if isinstance(v, date) else v
+
+    # Auto-set complication_yn from complications list
+    if "complications" in ext_data and "complication_yn" not in db_data:
+        db_data["complication_yn"] = len(ext_data.get("complications", [])) > 0
+
+    # Merge extended data into complication_detail as JSON
+    if ext_data:
+        import json as _json
+        # Load existing complication_detail if present
+        existing = await fetch_one(
+            conn,
+            "SELECT complication_detail, final_note FROM clinical.case_outcome_form WHERE case_id = %s",
+            (str(case_id),),
+        )
+        existing_ext: dict[str, Any] = {}
+        if existing and existing.get("complication_detail"):
+            try:
+                existing_ext = _json.loads(existing["complication_detail"])
+            except (ValueError, TypeError):
+                existing_ext = {"text": existing["complication_detail"]}
+        existing_ext.update(ext_data)
+        db_data["complication_detail"] = _json.dumps(existing_ext, ensure_ascii=False)
 
     row_payload = {
         "case_id": str(case_id),
         "hospital_code": case_row["hospital_code"],
         "patient_id": str(case_row["patient_id"]),
-        **data,
+        **db_data,
     }
     insert_cols, insert_placeholders, insert_values = build_insert_clause(row_payload)
     update_payload = {k: v for k, v in row_payload.items() if k not in {"case_id", "hospital_code", "patient_id"}}

@@ -167,28 +167,6 @@ export function LoginPage() {
             </button>
           </form>
 
-          {/* Demo Account */}
-          <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-            <p className="text-xs text-gray-500 mb-3">데모 계정으로 빠르게 접속하기</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={loading}
-                onClick={async () => { setError(""); setFieldErrors({}); setLoading(true); const r = await login("admin@ksor.kr", "Admin1234!"); setLoading(false); if (r.success) navigate("/"); else setError(r.error ?? "로그인에 실패했습니다."); }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors disabled:opacity-50"
-              >
-                관리자 (ADMIN)
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={async () => { setError(""); setFieldErrors({}); setLoading(true); const r = await login("doctor@ksor.kr", "Admin1234!"); setLoading(false); if (r.success) navigate("/"); else setError(r.error ?? "로그인에 실패했습니다."); }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors disabled:opacity-50"
-              >
-                연구책임자 (PI)
-              </button>
-            </div>
-          </div>
 
         </div>
       </div>

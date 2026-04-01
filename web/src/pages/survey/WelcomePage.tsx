@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { Logo } from '@/components/survey/Logo';
 import { MobileFrame } from '@/components/survey/MobileFrame';
 import { surveyService } from '@/api/survey';
+import { ApiValidationError, translateValidationMsg } from '@/api/client';
 
 export default function SurveyWelcomePage() {
   const navigate = useNavigate();
@@ -43,7 +44,13 @@ export default function SurveyWelcomePage() {
         setVerifyError('인증에 실패했습니다. 입력값을 확인해주세요.');
       }
     } catch (err) {
-      setVerifyError(err instanceof Error ? err.message : '인증 중 오류가 발생했습니다.');
+      if (err instanceof ApiValidationError) {
+        const labelMap: Record<string, string> = { method_code: '인증 방법', value: '인증값' };
+        const labels = err.fields.map(fe => `${labelMap[fe.field] ?? fe.field} — ${translateValidationMsg(fe.message)}`);
+        setVerifyError(`다음 항목을 확인해주세요: ${labels.join(', ')}`);
+      } else {
+        setVerifyError(err instanceof Error ? err.message : '인증 중 오류가 발생했습니다.');
+      }
     } finally {
       setVerifying(false);
     }

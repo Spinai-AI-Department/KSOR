@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import AuthenticatedContext, require_auth
 from app.core.responses import success
-from app.db.session import get_db
+from app.db.session import get_db, get_db_auth
 from app.models.auth import ChangePasswordRequest, LoginRequest, RefreshTokenRequest, ResetPasswordRequest, UpdateMyInfoRequest
 from app.services import auth_service
 
@@ -12,13 +12,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
-async def login(payload: LoginRequest, conn=Depends(get_db)):
+async def login(payload: LoginRequest, conn=Depends(get_db_auth)):
     data = await auth_service.login(conn, payload)
     return success("로그인에 성공했습니다.", data.model_dump())
 
 
 @router.post("/refresh")
-async def refresh(payload: RefreshTokenRequest, conn=Depends(get_db)):
+async def refresh(payload: RefreshTokenRequest, conn=Depends(get_db_auth)):
     data = await auth_service.refresh_token(conn, payload)
     return success("토큰이 재발급되었습니다.", data.model_dump())
 
@@ -42,7 +42,7 @@ async def change_password(payload: ChangePasswordRequest, ctx: AuthenticatedCont
 
 
 @router.post("/reset-password")
-async def reset_password(payload: ResetPasswordRequest, conn=Depends(get_db)):
+async def reset_password(payload: ResetPasswordRequest, conn=Depends(get_db_auth)):
     data = await auth_service.request_password_reset(conn, login_id=payload.login_id, email=payload.email)
     return success("등록된 연락처 또는 이메일로 임시 비밀번호 발급 절차가 진행되었습니다.", data)
 

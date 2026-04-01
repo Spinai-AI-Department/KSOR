@@ -19,25 +19,7 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) {
-      setData({
-        stats: { total_surgeries: 248, monthly_surgeries: 12, prom_pending_cases: 5, avg_op_time_min: 92, complications_count: 2 },
-        vas_odi_trend: [
-          { timepoint: '수술전', vas_back: 7.8, vas_leg: 7.2, odi: 64 },
-          { timepoint: '1개월', vas_back: 4.2, vas_leg: 3.5, odi: 38 },
-          { timepoint: '3개월', vas_back: 2.5, vas_leg: 1.8, odi: 22 },
-          { timepoint: '6개월', vas_back: 1.2, vas_leg: 0.8, odi: 12 },
-          { timepoint: '1년', vas_back: 0.8, vas_leg: 0.5, odi: 8 },
-        ],
-        surgery_type_distribution: [
-          { label: 'Full-endo', count: 112, percentage: 45 },
-          { label: 'UBE', count: 74, percentage: 30 },
-          { label: 'Biportal', count: 37, percentage: 15 },
-          { label: 'Open', count: 25, percentage: 10 },
-        ],
-      });
-      return;
-    }
+    if (!token) return;
     setLoading(true);
     setError(null);
     dashboardService.getData(token)
@@ -68,19 +50,19 @@ export function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 md:mb-8">
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-2">총 수술 건수</div>
-          <div className="text-4xl">{loading ? '…' : stats.total_surgeries}</div>
+          <div className="text-2xl md:text-4xl">{loading ? '…' : stats.total_surgeries}</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-2">이번 달 수술</div>
-          <div className="text-4xl">{loading ? '…' : stats.monthly_surgeries}</div>
+          <div className="text-2xl md:text-4xl">{loading ? '…' : stats.monthly_surgeries}</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-2">PROM 대기 건수</div>
-          <div className="text-4xl">{loading ? '…' : `${stats.prom_pending_cases} 건`}</div>
+          <div className="text-2xl md:text-4xl">{loading ? '…' : `${stats.prom_pending_cases} 건`}</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-2">합병증 건수</div>
-          <div className="text-4xl">{loading ? '…' : `${stats.complications_count} 건`}</div>
+          <div className="text-2xl md:text-4xl">{loading ? '…' : `${stats.complications_count} 건`}</div>
         </Card>
       </div>
 

@@ -7,7 +7,7 @@ export interface PatientListItem {
   patient_id: string
   case_id: string
   no: number
-  registration_no: string
+  registration_id: string
   patient_initial: string
   gender_age: string
   visit_date: string
@@ -24,7 +24,7 @@ export interface PatientListItem {
 export interface Patient {
   id: string
   caseId: string
-  registrationNo: string
+  registrationId: string
   name: string
   genderAge: string
   visitDate: string
@@ -54,7 +54,7 @@ export interface CreatePatientRequest {
 export interface CreatePatientResponse {
   patient_id: string
   case_id: string
-  registration_no: string
+  registration_id: string
   current_step: string
 }
 
@@ -89,7 +89,7 @@ function mapPatient(p: PatientListItem): Patient {
   return {
     id: p.patient_id,
     caseId: p.case_id,
-    registrationNo: p.registration_no,
+    registrationId: p.registration_id,
     name: p.patient_initial,
     genderAge: p.gender_age,
     visitDate: p.visit_date,
@@ -109,7 +109,49 @@ export interface PromSendRequest {
   remarks?: string
 }
 
+export interface CaseDetail {
+  case_id: string
+  patient_id: string
+  registration_id: string
+  patient_initial: string
+  sex: string
+  birth_year: number | null
+  visit_date: string
+  surgery_date: string | null
+  diagnosis_code: string | null
+  procedure_code: string | null
+  spinal_region: string | null
+  initial_form: {
+    comorbidities: string[]
+    diagnosis_detail: string | null
+    symptom_duration_weeks: number | null
+    baseline_neuro_deficit_yn: boolean | null
+    additional_attributes: Record<string, unknown> | null
+  } | null
+  extended_form: {
+    surgery_level: string | null
+    approach_type: string | null
+    laterality: string | null
+    operation_minutes: number | null
+    estimated_blood_loss_ml: number | null
+    anesthesia_type: string | null
+    implant_used_yn: boolean | null
+    hospital_stay_days: number | null
+    intraop_note: string | null
+  } | null
+  outcome_form: {
+    complication_yn: boolean | null
+    complication_detail: string | null
+    readmission_30d_yn: boolean | null
+    reoperation_yn: boolean | null
+    final_note: string | null
+  } | null
+}
+
 export const patientService = {
+  getDetail: (caseId: string, token: string) =>
+    api.get<CaseDetail>(`/patients/${caseId}`, token),
+
   list: async (params: PatientListParams, token: string): Promise<PaginatedPatients> => {
     const query = new URLSearchParams(
       Object.entries(params)

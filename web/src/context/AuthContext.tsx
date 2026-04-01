@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { authService } from "../api/auth";
+import { setTokenRefresher } from "../api/client";
 
 export interface User {
   id: string;
@@ -25,40 +26,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const DEMO_ACCOUNTS = [
-  {
-    email: "admin@ksor.kr",
-    password: "Admin1234!",
-    user: {
-      id: "demo-admin",
-      name: "김민준",
-      role: "관리자",
-      hospital: "서울대학교병원",
-      email: "admin@ksor.kr",
-      phone: "010-1234-5678",
-      specialty: "신경외과",
-      department: "신경외과",
-    } as User,
-  },
-  {
-    email: "doctor@ksor.kr",
-    password: "Admin1234!",
-    user: {
-      id: "demo-doctor",
-      name: "이수연",
-      role: "연구책임자",
-      hospital: "세브란스병원",
-      email: "doctor@ksor.kr",
-      phone: "010-9876-5432",
-      specialty: "신경외과",
-      department: "신경외과",
-    } as User,
-  },
-];
-
-export function isDemoUser(user: User | null): boolean {
-  return !!user && user.id.startsWith("demo-");
-}
+/** How many ms before expiry to proactively refresh (5 minutes) */
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
@@ -74,27 +43,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.getItem("ksor_token")
   );
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+
+  // ── helpers to persist tokens ──
+  const persistTokens = useCallback((accessToken: string, refreshToken: string, expiresIn: number) => {
+    setToken(accessToken);
+    localStorage.setItem("ksor_token", accessToken);
+    localStorage.setItem("ksor_refresh_token", refreshToken);
+    localStorage.setItem("ksor_token_expires_at", String(Date.now() + expiresIn * 1000));
+  }, []);
+
+  const clearAuth = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("ksor_user");
+    localStorage.removeItem("ksor_token");
+    localStorage.removeItem("ksor_refresh_token");
+    localStorage.removeItem("ksor_token_expires_at");
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
+
+  // ── core refresh logic ──
+  const doRefresh = useCallback(async (): Promise<string | null> => {
+    const rt = localStorage.getItem("ksor_refresh_token");
+    if (!rt || isRefreshingRef.current) return null;
+    isRefreshingRef.current = true;
+    try {
+      const res = await authService.refresh(rt);
+      persistTokens(res.access_token, res.refresh_token, res.expires_in);
+      return res.access_token;
+    } catch {
+      clearAuth();
+      return null;
+    } finally {
+      isRefreshingRef.current = false;
+    }
+  }, [persistTokens, clearAuth]);
+
+  // ── schedule proactive refresh ──
+  const scheduleRefresh = useCallback((expiresIn: number) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    const delay = Math.max((expiresIn * 1000) - REFRESH_MARGIN_MS, 10_000);
+    refreshTimerRef.current = setTimeout(() => { doRefresh(); }, delay);
+  }, [doRefresh]);
+
+  // Wire up the client-level 401 interceptor so any API call can auto-retry
+  useEffect(() => {
+    setTokenRefresher(doRefresh);
+    return () => setTokenRefresher(null);
+  }, [doRefresh]);
+
+  // On mount, schedule a refresh if we have a stored expiry
+  useEffect(() => {
+    const expiresAt = Number(localStorage.getItem("ksor_token_expires_at") || 0);
+    if (expiresAt > 0) {
+      const remaining = Math.max((expiresAt - Date.now()) / 1000, 0);
+      if (remaining > 0) {
+        scheduleRefresh(remaining);
+      } else {
+        // Token already expired — try refresh immediately
+        doRefresh();
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── login ──
   const login = async (
     email: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
-    // Demo accounts — work without backend
-    const demo = DEMO_ACCOUNTS.find(a => a.email === email && a.password === password);
-    if (demo) {
-      setUser(demo.user);
-      setToken(null);
-      localStorage.setItem("ksor_user", JSON.stringify(demo.user));
-      localStorage.removeItem("ksor_token");
-      return { success: true };
-    }
-
-    // Real backend login
     try {
       const res = await authService.login({ login_id: email, password });
       setUser(res.user);
-      setToken(res.access_token);
+      persistTokens(res.access_token, res.refresh_token, res.expires_in);
       localStorage.setItem("ksor_user", JSON.stringify(res.user));
-      localStorage.setItem("ksor_token", res.access_token);
+      scheduleRefresh(res.expires_in);
       return { success: true };
     } catch (err) {
       return {
@@ -104,36 +128,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ── logout ──
   const logout = () => {
-    // Fire-and-forget server-side session invalidation
     if (token) {
       authService.logout(token).catch(() => {});
     }
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("ksor_user");
-    localStorage.removeItem("ksor_token");
+    clearAuth();
   };
 
   const updateUser = async (
     updates: Partial<User>
   ): Promise<{ success: boolean; error?: string }> => {
     if (!user) return { success: false, error: "로그인이 필요합니다." };
-
-    // Demo user — update locally
-    if (isDemoUser(user)) {
-      const updated = { ...user, ...updates };
-      setUser(updated);
-      localStorage.setItem("ksor_user", JSON.stringify(updated));
-      return { success: true };
-    }
     if (!token) return { success: false, error: "인증 토큰이 없습니다." };
     try {
       await authService.updateProfile(
         { email: updates.email, phone: updates.phone },
         token
       );
-      // updateProfile returns void; fetch fresh profile from server
       const freshUser = await authService.getMe(token);
       setUser(freshUser);
       localStorage.setItem("ksor_user", JSON.stringify(freshUser));
@@ -153,9 +165,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return { success: false, error: "로그인이 필요합니다." };
     if (newPw.length < 6)
       return { success: false, error: "새 비밀번호는 6자 이상이어야 합니다." };
-
-    // Demo user — accept locally
-    if (isDemoUser(user)) return { success: true };
     if (!token) return { success: false, error: "인증 토큰이 없습니다." };
     try {
       await authService.changePassword(
@@ -173,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isAuthenticated: !!user && (!!token || isDemoUser(user)), login, logout, updateUser, changePassword }}
+      value={{ user, token, isAuthenticated: !!user && !!token, login, logout, updateUser, changePassword }}
     >
       {children}
     </AuthContext.Provider>

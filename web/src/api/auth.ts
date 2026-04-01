@@ -30,6 +30,9 @@ export interface BackendMyProfile {
   role: string
   email: string | null
   phone: string | null
+  department: string | null
+  specialty: string | null
+  license_number: string | null
   is_first_login: boolean
   last_login_at: string | null
 }
@@ -49,6 +52,7 @@ export interface User {
 export interface LoginResponse {
   access_token: string
   refresh_token: string
+  expires_in: number
   user: User
 }
 
@@ -70,6 +74,9 @@ function mapProfile(profile: BackendMyProfile): User {
     hospital: profile.hospital_code ?? '',
     email: profile.email ?? profile.login_id,
     phone: profile.phone ?? undefined,
+    department: profile.department ?? undefined,
+    specialty: profile.specialty ?? undefined,
+    licenseNumber: profile.license_number ?? undefined,
   }
 }
 
@@ -90,6 +97,7 @@ export const authService = {
     return {
       access_token: res.access_token,
       refresh_token: res.refresh_token,
+      expires_in: res.expires_in,
       user: mapUserInfo(res.user_info),
     }
   },
@@ -106,7 +114,7 @@ export const authService = {
     api.put<void>('/auth/password', data, token),
 
   refresh: (refreshToken: string) =>
-    api.post<{ access_token: string; refresh_token: string }>('/auth/refresh', { refresh_token: refreshToken }),
+    api.post<{ access_token: string; refresh_token: string; expires_in: number }>('/auth/refresh', { refresh_token: refreshToken }),
 
   logout: (token: string) =>
     api.post<void>('/auth/logout', {}, token),

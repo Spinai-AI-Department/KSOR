@@ -140,6 +140,35 @@ async def generate_report_csv(
 ) -> bytes:
     report = await get_report_data(conn, date_from=date_from, date_to=date_to)
 
+    # Fetch per-patient detail rows
+    where_sql, params = _build_date_filters(date_from, date_to)
+    detail_rows = await fetch_all(
+        conn,
+        f"""
+        SELECT
+            cr.registration_id AS "환자ID",
+            cr.surgery_date AS "수술일",
+            cr.diagnosis_code AS "진단코드",
+            cr.procedure_code AS "수술코드",
+            cef.approach_type AS "접근법",
+            cef.surgery_level AS "수술레벨",
+            cef.operation_minutes AS "수술시간(분)",
+            cef.estimated_blood_loss_ml AS "출혈량(ml)",
+            cef.hospital_stay_days AS "재원일수",
+            cof.complication_yn AS "합병증여부",
+            cof.complication_detail AS "합병증상세",
+            cof.reoperation_yn AS "재수술여부",
+            cof.surgeon_global_outcome AS "술자평가"
+        FROM clinical.case_record cr
+        LEFT JOIN clinical.case_extended_form cef ON cef.case_id = cr.case_id
+        LEFT JOIN clinical.case_outcome_form cof ON cof.case_id = cr.case_id
+        WHERE cr.surgery_date IS NOT NULL
+          AND {where_sql}
+        ORDER BY cr.surgery_date DESC, cr.registration_id
+        """,
+        params,
+    )
+
     buf = io.StringIO()
     writer = csv.writer(buf)
 
@@ -162,5 +191,17 @@ async def generate_report_csv(
     writer.writerow(["수술 유형", "성공률(%)", "호전률(%)"])
     for item in report.surgery_outcomes:
         writer.writerow([item.type, item.success, item.improved])
+    writer.writerow([])
+
+    # Per-patient detail section
+    writer.writerow(["=== 환자별 상세 데이터 ==="])
+    if detail_rows:
+        headers = list(detail_rows[0].keys())
+        writer.writerow(headers)
+        for row in detail_rows:
+            writer.writerow([row[h] for h in headers])
+    else:
+        writer.writerow(["환자ID", "수술일", "진단코드", "수술코드", "접근법", "합병증여부"])
+        writer.writerow(["데이터 없음"])
 
     return buf.getvalue().encode("utf-8-sig")

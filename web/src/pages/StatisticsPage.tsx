@@ -59,51 +59,7 @@ export function SurgeryAnalysis() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      // Demo data for recovery trend
-      setRecoveryData([
-        { period: '수술전', VAS_back: 7.8, VAS_leg: 7.2, ODI: 64, EQ5D: 0.35 },
-        { period: '1개월', VAS_back: 4.2, VAS_leg: 3.5, ODI: 38, EQ5D: 0.55 },
-        { period: '3개월', VAS_back: 2.5, VAS_leg: 1.8, ODI: 22, EQ5D: 0.72 },
-        { period: '6개월', VAS_back: 1.2, VAS_leg: 0.8, ODI: 12, EQ5D: 0.85 },
-        { period: '1년', VAS_back: 0.8, VAS_leg: 0.5, ODI: 8, EQ5D: 0.92 },
-      ]);
-      // Demo approach comparison
-      setApproachComparison([
-        { category: '수술시간', 'Full-endo': 85, 'UBE': 72, 'Biportal': 95, 'Open': 120 },
-        { category: '출혈량', 'Full-endo': 30, 'UBE': 45, 'Biportal': 55, 'Open': 180 },
-        { category: '입원기간', 'Full-endo': 2.1, 'UBE': 2.5, 'Biportal': 3.2, 'Open': 5.8 },
-        { category: '합병증율', 'Full-endo': 2.1, 'UBE': 3.5, 'Biportal': 4.2, 'Open': 6.8 },
-      ]);
-      // Demo satisfaction
-      setSatisfactionData([
-        { subject: '매우불만(1)', score: 2 },
-        { subject: '불만(2)', score: 5 },
-        { subject: '보통(3)', score: 15 },
-        { subject: '만족(4)', score: 38 },
-        { subject: '매우만족(5)', score: 40 },
-      ]);
-      // Demo patient outcomes
-      const demoOutcomes: OutcomeRow[] = [
-        { id: 1, age: 35, preVAS: 72, postVAS: 18, improvement: 75, approach: 'Full-endo', satisfaction: 5 },
-        { id: 2, age: 48, preVAS: 65, postVAS: 22, improvement: 66, approach: 'UBE', satisfaction: 4 },
-        { id: 3, age: 52, preVAS: 58, postVAS: 15, improvement: 74, approach: 'Full-endo', satisfaction: 5 },
-        { id: 4, age: 61, preVAS: 70, postVAS: 30, improvement: 57, approach: 'Biportal', satisfaction: 4 },
-        { id: 5, age: 42, preVAS: 80, postVAS: 25, improvement: 69, approach: 'Full-endo', satisfaction: 4 },
-        { id: 6, age: 55, preVAS: 62, postVAS: 20, improvement: 68, approach: 'Open', satisfaction: 3 },
-        { id: 7, age: 39, preVAS: 75, postVAS: 12, improvement: 84, approach: 'Full-endo', satisfaction: 5 },
-        { id: 8, age: 67, preVAS: 68, postVAS: 35, improvement: 49, approach: 'UBE', satisfaction: 3 },
-      ];
-      setAllOutcomes(demoOutcomes);
-      setPatientOutcomes(demoOutcomes);
-      // Demo key metrics
-      setKeyMetrics({
-        avgVasImprovement: 68.5, avgOdiImprovement: 72.3, satisfactionRate: 78.0,
-        satisfiedCount: 156, totalSatisfaction: 200, reoperationRate: 2.4,
-        reoperationCount: 6, totalPatients: 248,
-      });
-      return;
-    }
+    if (!token) return;
     setLoading(true);
 
     // Load recovery trend
@@ -195,7 +151,7 @@ export function SurgeryAnalysis() {
             <div className="text-sm text-gray-600">평균 VAS 개선도</div>
             <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
-          <div className="text-3xl mb-1">{keyMetrics.avgVasImprovement.toFixed(1)}%</div>
+          <div className="text-xl md:text-3xl mb-1">{keyMetrics.avgVasImprovement.toFixed(1)}%</div>
           <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
         </Card>
         <Card className="p-6 bg-white">
@@ -203,7 +159,7 @@ export function SurgeryAnalysis() {
             <div className="text-sm text-gray-600">평균 ODI 개선도</div>
             <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
-          <div className="text-3xl mb-1">{keyMetrics.avgOdiImprovement.toFixed(1)}%</div>
+          <div className="text-xl md:text-3xl mb-1">{keyMetrics.avgOdiImprovement.toFixed(1)}%</div>
           <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
         </Card>
         <Card className="p-6 bg-white">
@@ -211,7 +167,7 @@ export function SurgeryAnalysis() {
             <div className="text-sm text-gray-600">환자 만족도</div>
             <Activity className="w-5 h-5 text-blue-600" />
           </div>
-          <div className="text-3xl mb-1">{keyMetrics.satisfactionRate.toFixed(1)}%</div>
+          <div className="text-xl md:text-3xl mb-1">{keyMetrics.satisfactionRate.toFixed(1)}%</div>
           <div className="text-xs text-gray-500">{keyMetrics.totalSatisfaction}명 중 {keyMetrics.satisfiedCount}명</div>
         </Card>
         <Card className="p-6 bg-white">
@@ -219,7 +175,7 @@ export function SurgeryAnalysis() {
             <div className="text-sm text-gray-600">합병증율</div>
             <TrendingDown className="w-5 h-5 text-red-600" />
           </div>
-          <div className="text-3xl mb-1">{keyMetrics.reoperationRate.toFixed(1)}%</div>
+          <div className="text-xl md:text-3xl mb-1">{keyMetrics.reoperationRate.toFixed(1)}%</div>
           <div className="text-xs text-gray-500">{keyMetrics.totalPatients}명 중 {keyMetrics.reoperationCount}명</div>
         </Card>
       </div>
@@ -322,7 +278,7 @@ export function SurgeryAnalysis() {
           <tbody>
             {patientOutcomes.map((patient, index) => (
               <tr key={patient.id} className="border-b border-gray-100">
-                <td className="py-3 px-4 text-sm">{patient.id}</td>
+                <td className="text-left py-3 px-4 text-sm">{patient.id}</td>
                 <td className="text-center py-3 px-4 text-sm">{patient.age ? `${patient.age}세` : '—'}</td>
                 <td className="text-center py-3 px-4 text-sm">{patient.preVAS}</td>
                 <td className="text-center py-3 px-4 text-sm">{patient.postVAS}</td>

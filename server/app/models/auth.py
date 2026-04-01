@@ -61,6 +61,9 @@ class MyProfileResponse(APIModel):
     role: str
     email: str | None = None
     phone: str | None = None
+    department: str | None = None
+    specialty: str | None = None
+    license_number: str | None = None
     is_first_login: bool
     last_login_at: datetime | None = None
 

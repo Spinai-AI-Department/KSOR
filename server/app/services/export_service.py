@@ -51,7 +51,7 @@ async def _site_export_rows(
         SELECT
             {select_hospital}
             cr.case_id,
-            cr.registration_no,
+            cr.registration_id,
             p.patient_initial,
             p.sex,
             p.birth_year,
@@ -84,7 +84,7 @@ async def _site_export_rows(
 def _csv_response(rows: list[dict[str, Any]], filename: str) -> StreamingResponse:
     def iter_bytes() -> Iterable[bytes]:
         if not rows:
-            header = b"case_id,registration_no\n"
+            header = b"case_id,registration_id\n"
             yield header
             return
         buf = io.StringIO()

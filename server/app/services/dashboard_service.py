@@ -269,10 +269,13 @@ async def get_benchmark(
         """,
         params,
     )
-    global_rows = await fetch_all(
-        conn,
-        "SELECT timepoint_code AS timepoint, avg_odi_score AS ksor_average FROM analytics.mv_global_prom_benchmark ORDER BY timepoint_code",
-    )
+    try:
+        global_rows = await fetch_all(
+            conn,
+            "SELECT timepoint_code AS timepoint, avg_odi_score AS ksor_average FROM analytics.mv_global_prom_benchmark ORDER BY timepoint_code",
+        )
+    except Exception:
+        global_rows = []
     merged: dict[str, dict[str, Any]] = {}
     for row in global_rows:
         merged.setdefault(row["timepoint"], {}).update(row)
@@ -297,10 +300,13 @@ async def get_benchmark(
         """,
         params,
     )
-    global_overall = await fetch_one(
-        conn,
-        "SELECT round(avg(avg_odi_score)::numeric, 1)::float AS ksor_average FROM analytics.mv_global_prom_benchmark",
-    )
+    try:
+        global_overall = await fetch_one(
+            conn,
+            "SELECT round(avg(avg_odi_score)::numeric, 1)::float AS ksor_average FROM analytics.mv_global_prom_benchmark",
+        )
+    except Exception:
+        global_overall = {}
     return BenchmarkResponse(
         odi_improvement_trend=ordered,
         overall_improvement_rate=OverallImprovementRate(
@@ -394,7 +400,7 @@ async def get_statistics(
         )
         SELECT
             cr.case_id::text,
-            cr.registration_no,
+            cr.registration_id,
             pre.preop_odi::float,
             post.postop_odi::float,
             round((coalesce(pre.preop_odi, 0) - coalesce(post.postop_odi, 0))::numeric, 1)::float AS improvement,
@@ -498,11 +504,11 @@ async def get_statistics(
     )
 
     summary = StatisticsSummary(
-        avg_vas_improvement=(vas_improvement_row or {}).get("avg_vas_improvement"),
-        avg_odi_improvement=(odi_improvement_row or {}).get("avg_odi_improvement"),
-        satisfaction_rate=(satisfaction_row or {}).get("satisfaction_rate"),
-        reoperation_rate=(reoperation_row or {}).get("reoperation_rate"),
-        total_cases=(satisfaction_row or {}).get("total_cases", 0),
+        avg_vas_improvement=(vas_improvement_row or {}).get("avg_vas_improvement") or 0.0,
+        avg_odi_improvement=(odi_improvement_row or {}).get("avg_odi_improvement") or 0.0,
+        satisfaction_rate=(satisfaction_row or {}).get("satisfaction_rate") or 0.0,
+        reoperation_rate=(reoperation_row or {}).get("reoperation_rate") or 0.0,
+        total_cases=(satisfaction_row or {}).get("total_cases", 0) or 0,
     )
 
     return StatisticsResponse(
@@ -524,7 +530,7 @@ async def get_recent_followups(
         SELECT
             cr.patient_id::text AS patient_id,
             cr.case_id::text AS case_id,
-            cr.registration_no,
+            cr.registration_id,
             p.patient_initial,
             pr.timepoint_code AS timepoint,
             pr.token_status::text AS status,

@@ -33,26 +33,7 @@ export function Reports() {
   const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) {
-      setData({
-        summary: { total_surgeries: 248, success_rate: 94.2, complication_rate: 2.4, avg_hospital_days: 3.2 },
-        monthly_trend: [
-          { month: '2024-07', surgeries: 18, complications: 1 },
-          { month: '2024-08', surgeries: 22, complications: 0 },
-          { month: '2024-09', surgeries: 20, complications: 1 },
-          { month: '2024-10', surgeries: 25, complications: 0 },
-          { month: '2024-11', surgeries: 19, complications: 1 },
-          { month: '2024-12', surgeries: 12, complications: 0 },
-        ],
-        surgery_outcomes: [
-          { type: 'Full-endo', success: 96, improved: 88 },
-          { type: 'UBE', success: 93, improved: 85 },
-          { type: 'Biportal', success: 91, improved: 82 },
-          { type: 'Open', success: 88, improved: 78 },
-        ],
-      });
-      return;
-    }
+    if (!token) return;
     setLoading(true);
     setError(null);
     reportService.getData({ date_from: dateFrom, date_to: dateTo }, token)
@@ -65,7 +46,7 @@ export function Reports() {
 
   const handleDownloadPdf = async () => {
     if (!token) {
-      setError('데모 모드에서는 CSV 다운로드를 사용할 수 없습니다.');
+      setError('로그인이 필요합니다.');
       return;
     }
     setDownloading(true);
@@ -98,6 +79,7 @@ export function Reports() {
             <div className="flex items-center gap-2">
               <input
                 type="date"
+                max="9999-12-31"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -105,6 +87,7 @@ export function Reports() {
               <span className="text-gray-400 text-sm">~</span>
               <input
                 type="date"
+                max="9999-12-31"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -136,19 +119,19 @@ export function Reports() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-1">총 수술 건수</div>
-          <div className="text-3xl mb-1">{loading ? '…' : `${summary.total_surgeries}건`}</div>
+          <div className="text-xl md:text-3xl mb-1">{loading ? '…' : `${summary.total_surgeries}건`}</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-1">평균 수술 성공률</div>
-          <div className="text-3xl mb-1">{loading ? '…' : `${summary.success_rate}%`}</div>
+          <div className="text-xl md:text-3xl mb-1">{loading ? '…' : `${summary.success_rate}%`}</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-1">합병증 발생률</div>
-          <div className="text-3xl mb-1">{loading ? '…' : `${summary.complication_rate}%`}</div>
+          <div className="text-xl md:text-3xl mb-1">{loading ? '…' : `${summary.complication_rate}%`}</div>
         </Card>
         <Card className="p-6 bg-white">
           <div className="text-sm text-gray-600 mb-1">평균 입원 기간</div>
-          <div className="text-3xl mb-1">{loading ? '…' : `${summary.avg_hospital_days}일`}</div>
+          <div className="text-xl md:text-3xl mb-1">{loading ? '…' : `${summary.avg_hospital_days}일`}</div>
         </Card>
       </div>
 
@@ -201,7 +184,7 @@ export function Reports() {
             <tbody>
               {monthly_trend.map((row) => (
                 <tr key={row.month} className="border-b border-gray-100">
-                  <td className="py-3 px-4 text-sm">{row.month}</td>
+                  <td className="text-left py-3 px-4 text-sm">{row.month}</td>
                   <td className="text-right py-3 px-4 text-sm">{row.surgeries}</td>
                   <td className="text-right py-3 px-4 text-sm">{row.complications}</td>
                   <td className="text-right py-3 px-4 text-sm">
