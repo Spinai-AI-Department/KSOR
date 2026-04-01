@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import JSONResponse
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -46,7 +46,7 @@ app = FastAPI(
     title=settings.app_name,
     debug=settings.app_debug,
     version="1.0.0",
-    default_response_class=ORJSONResponse,
+    default_response_class=JSONResponse,
     lifespan=lifespan,
     middleware=middleware,
 )
@@ -64,7 +64,7 @@ if settings.cors_origins:
 
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError):
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=exc.status_code,
         content={
             "status": "error",
@@ -78,7 +78,7 @@ async def app_error_handler(request: Request, exc: AppError):
 @app.exception_handler(psycopg.errors.ForeignKeyViolation)
 async def fk_violation_handler(request: Request, exc: psycopg.errors.ForeignKeyViolation):
     detail = str(exc).split("DETAIL:  ")[-1].split("\n")[0] if "DETAIL:" in str(exc) else str(exc)
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=400,
         content={
             "status": "error",
@@ -92,7 +92,7 @@ async def fk_violation_handler(request: Request, exc: psycopg.errors.ForeignKeyV
 @app.exception_handler(psycopg.errors.UniqueViolation)
 async def unique_violation_handler(request: Request, exc: psycopg.errors.UniqueViolation):
     detail = str(exc).split("DETAIL:  ")[-1].split("\n")[0] if "DETAIL:" in str(exc) else str(exc)
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=409,
         content={
             "status": "error",
@@ -105,7 +105,7 @@ async def unique_violation_handler(request: Request, exc: psycopg.errors.UniqueV
 
 @app.exception_handler(psycopg.errors.CheckViolation)
 async def check_violation_handler(request: Request, exc: psycopg.errors.CheckViolation):
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=400,
         content={
             "status": "error",
@@ -118,7 +118,7 @@ async def check_violation_handler(request: Request, exc: psycopg.errors.CheckVio
 
 @app.exception_handler(psycopg.errors.RaiseException)
 async def raise_exception_handler(request: Request, exc: psycopg.errors.RaiseException):
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=400,
         content={
             "status": "error",
@@ -132,7 +132,7 @@ async def raise_exception_handler(request: Request, exc: psycopg.errors.RaiseExc
 @app.exception_handler(psycopg.errors.NotNullViolation)
 async def not_null_violation_handler(request: Request, exc: psycopg.errors.NotNullViolation):
     detail = str(exc).split("DETAIL:  ")[-1].split("\n")[0] if "DETAIL:" in str(exc) else str(exc)
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=400,
         content={
             "status": "error",
@@ -145,7 +145,7 @@ async def not_null_violation_handler(request: Request, exc: psycopg.errors.NotNu
 
 @app.exception_handler(psycopg.errors.InsufficientPrivilege)
 async def insufficient_privilege_handler(request: Request, exc: psycopg.errors.InsufficientPrivilege):
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=403,
         content={
             "status": "error",
@@ -160,7 +160,7 @@ async def insufficient_privilege_handler(request: Request, exc: psycopg.errors.I
 async def generic_db_error_handler(request: Request, exc: psycopg.Error):
     import logging
     logging.getLogger(__name__).error("Unhandled DB error: %s", exc, exc_info=True)
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=500,
         content={
             "status": "error",
@@ -184,7 +184,7 @@ async def request_validation_error_handler(request: Request, exc: RequestValidat
     field_names = ", ".join(e["field"] for e in field_errors)
     message = f"입력값 검증 실패: {field_names}" if field_names else "요청 값 검증에 실패했습니다."
 
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=422,
         content={
             "status": "error",
