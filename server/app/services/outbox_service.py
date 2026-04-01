@@ -107,7 +107,7 @@ async def lease_next_batch(conn: AsyncConnection, *, node_name: str, batch_size:
     )
 
 
-async def _load_recipient_phone(conn: AsyncConnection, patient_id: int) -> str | None:
+async def _load_recipient_phone(conn: AsyncConnection, patient_id: str) -> str | None:
     row = await fetch_one(conn, "SELECT phone_enc FROM vault.patient_identity WHERE patient_id = %s", (patient_id,))
     if not row:
         return None

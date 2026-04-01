@@ -48,7 +48,7 @@ class PatientCreateRequest(APIModel):
 
 
 class PatientCreateResponse(APIModel):
-    patient_id: int
+    patient_id: str
     case_id: UUID
     registration_id: str
     current_step: str = "TAB_1"
@@ -129,7 +129,7 @@ class PromSendRequest(APIModel):
 
 
 class PatientListItem(APIModel):
-    patient_id: int
+    patient_id: str
     case_id: UUID
     no: int
     registration_id: str

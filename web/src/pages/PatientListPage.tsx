@@ -105,7 +105,7 @@ function PatientListTab() {
   const [listError, setListError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ patientId: number; caseId: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ patientId: string; caseId: string } | null>(null);
 
   // AlimTalk
   type FollowUpPeriodKey = 'preOp' | 'm1' | 'm3' | 'm6' | 'yr1';
@@ -255,7 +255,7 @@ function PatientListTab() {
     }).catch(() => {});
   }, [token]);
 
-  const handleDeletePatient = (patientId: number, caseId: string) => {
+  const handleDeletePatient = (patientId: string, caseId: string) => {
     setDeleteConfirm({ patientId, caseId });
   };
 
@@ -737,7 +737,7 @@ function ComplicationTab() {
   };
 
   const [lookupLoading, setLookupLoading] = useState(false);
-  const [lookupResults, setLookupResults] = useState<{ caseId: string; patientId: number; name: string; genderAge: string }[]>([]);
+  const [lookupResults, setLookupResults] = useState<{ caseId: string; patientId: string; name: string; genderAge: string }[]>([]);
   const [patientInfo, setPatientInfo] = useState<{ genderAge: string; surgeryDate: string | null; diagnosisCode: string | null; procedureCode: string | null } | null>(null);
 
   const loadCaseDetail = async (caseId: string) => {

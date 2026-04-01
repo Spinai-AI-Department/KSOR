@@ -4,7 +4,7 @@ export type FollowUpStatus = 'Completed' | 'Pending' | 'Not Due' | 'Overdue'
 
 // Backend's actual patient list item shape
 export interface PatientListItem {
-  patient_id: number
+  patient_id: string
   case_id: string
   no: number
   registration_id: string
@@ -22,7 +22,7 @@ export interface PatientListItem {
 
 // Frontend-friendly patient (mapped from backend)
 export interface Patient {
-  id: number
+  id: string
   caseId: string
   registrationId: string
   name: string
@@ -52,7 +52,7 @@ export interface CreatePatientRequest {
 }
 
 export interface CreatePatientResponse {
-  patient_id: number
+  patient_id: string
   case_id: string
   registration_id: string
   current_step: string
@@ -111,7 +111,7 @@ export interface PromSendRequest {
 
 export interface CaseDetail {
   case_id: string
-  patient_id: number
+  patient_id: string
   registration_id: string
   patient_initial: string
   sex: string

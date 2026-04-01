@@ -166,7 +166,7 @@ class TestDashboard:
 # ──────────────────────────────────────────
 class TestPatients:
     case_id: str = ""
-    patient_id: int = 0
+    patient_id: str = ""
 
     def test_create_patient(self, client: httpx.Client, admin_token: str, admin_user_id: str):
         resp = client.post(

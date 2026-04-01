@@ -981,8 +981,17 @@ $$;
 -- --------------------------------------------------------------------------
 -- Patient / identity vault tables
 -- --------------------------------------------------------------------------
+CREATE SEQUENCE IF NOT EXISTS patient.patient_id_seq;
+
+CREATE OR REPLACE FUNCTION patient.next_patient_id()
+RETURNS varchar(10)
+LANGUAGE sql
+AS $$
+    SELECT lpad(nextval('patient.patient_id_seq')::text, 10, '0');
+$$;
+
 CREATE TABLE IF NOT EXISTS patient.patient (
-    patient_id                  bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    patient_id                  varchar(10) PRIMARY KEY DEFAULT patient.next_patient_id(),
     hospital_code               varchar(20) NOT NULL REFERENCES ref.hospital(hospital_code),
     patient_initial             varchar(20) NOT NULL,
     sex                         patient.sex_type NOT NULL DEFAULT 'UNKNOWN',
@@ -1001,7 +1010,7 @@ CREATE INDEX IF NOT EXISTS idx_patient_hospital_active
     ON patient.patient (hospital_code, is_active);
 
 CREATE TABLE IF NOT EXISTS vault.patient_identity (
-    patient_id                  bigint PRIMARY KEY,
+    patient_id                  varchar(10) PRIMARY KEY,
     hospital_code               varchar(20) NOT NULL,
     local_mrn_enc               bytea,
     local_mrn_sha256            char(64),
@@ -1057,7 +1066,7 @@ CREATE TABLE IF NOT EXISTS clinical.registration_counter (
 CREATE TABLE IF NOT EXISTS clinical.case_record (
     case_id                     uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code               varchar(20) NOT NULL REFERENCES ref.hospital(hospital_code),
-    patient_id                  bigint NOT NULL,
+    patient_id                  varchar(10) NOT NULL,
     registration_id             varchar(40) NOT NULL,
     consent_date                date,
     visit_date                  date NOT NULL,
@@ -1102,7 +1111,7 @@ CREATE INDEX IF NOT EXISTS idx_case_record_surgeon
 CREATE TABLE IF NOT EXISTS clinical.case_initial_form (
     case_id                     uuid PRIMARY KEY,
     hospital_code               varchar(20) NOT NULL,
-    patient_id                  bigint NOT NULL,
+    patient_id                  varchar(10) NOT NULL,
     comorbidities               jsonb NOT NULL DEFAULT '[]'::jsonb,
     diagnosis_detail            text,
     symptom_duration_weeks      numeric(8,2),
@@ -1136,7 +1145,7 @@ CREATE INDEX IF NOT EXISTS idx_case_initial_comorbidities_gin
 CREATE TABLE IF NOT EXISTS clinical.case_extended_form (
     case_id                     uuid PRIMARY KEY,
     hospital_code               varchar(20) NOT NULL,
-    patient_id                  bigint NOT NULL,
+    patient_id                  varchar(10) NOT NULL,
     surgery_level               varchar(100),
     approach_type               varchar(100),
     laterality                  varchar(50),
@@ -1170,7 +1179,7 @@ CREATE INDEX IF NOT EXISTS idx_case_extended_adverse_events_gin
 CREATE TABLE IF NOT EXISTS clinical.case_outcome_form (
     case_id                     uuid PRIMARY KEY,
     hospital_code               varchar(20) NOT NULL,
-    patient_id                  bigint NOT NULL,
+    patient_id                  varchar(10) NOT NULL,
     complication_yn             boolean,
     complication_detail         text,
     readmission_30d_yn          boolean,
@@ -1198,7 +1207,7 @@ CREATE TABLE IF NOT EXISTS clinical.case_followup_visit (
     followup_id                  uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     timepoint_code               varchar(30) NOT NULL REFERENCES ref.timepoint(timepoint_code),
     visit_date                   date NOT NULL,
     clinician_note               text,
@@ -1226,7 +1235,7 @@ CREATE TABLE IF NOT EXISTS clinical.case_memo (
     memo_id                      uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     visibility                   clinical.memo_visibility NOT NULL DEFAULT 'PRIVATE',
     memo_text                    text NOT NULL,
     created_at                   timestamptz NOT NULL DEFAULT now(),
@@ -1248,7 +1257,7 @@ CREATE TABLE IF NOT EXISTS clinical.case_lock_history (
     lock_event_id                uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     is_locked                    boolean NOT NULL,
     reason                       text,
     changed_by                   uuid REFERENCES auth.user_account(user_id),
@@ -1449,7 +1458,7 @@ CREATE TABLE IF NOT EXISTS survey.prom_request (
     request_id                   uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     timepoint_code               varchar(30) NOT NULL REFERENCES ref.timepoint(timepoint_code),
     token_uuid                   uuid NOT NULL DEFAULT app_private.gen_uuid_pk(),
     token_status                 survey.token_status NOT NULL DEFAULT 'READY',
@@ -1495,7 +1504,7 @@ CREATE TABLE IF NOT EXISTS survey.prom_draft (
     request_id                   uuid PRIMARY KEY REFERENCES survey.prom_request(request_id) ON DELETE CASCADE,
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     answer_payload               jsonb NOT NULL DEFAULT '{}'::jsonb,
     last_saved_at                timestamptz NOT NULL DEFAULT now(),
     save_count                   integer NOT NULL DEFAULT 0 CHECK (save_count >= 0),
@@ -1523,7 +1532,7 @@ CREATE TABLE IF NOT EXISTS survey.prom_submission (
     submission_id                uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     request_id                   uuid NOT NULL UNIQUE,
     timepoint_code               varchar(30) NOT NULL REFERENCES ref.timepoint(timepoint_code),
     instrument_bundle            jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -1576,7 +1585,7 @@ CREATE TABLE IF NOT EXISTS survey.prom_answer (
     submission_id                uuid NOT NULL REFERENCES survey.prom_submission(submission_id) ON DELETE CASCADE,
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     instrument_code              varchar(30) NOT NULL,
     question_code                varchar(50) NOT NULL,
     display_order                integer,
@@ -1626,7 +1635,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_patient_id bigint;
+    v_patient_id varchar(10);
 BEGIN
     IF NEW.patient_id IS NULL THEN
         SELECT patient_id INTO v_patient_id
@@ -1657,7 +1666,7 @@ AS $$
 DECLARE
     v_hospital_code  varchar(20);
     v_case_id        uuid;
-    v_patient_id     bigint;
+    v_patient_id     varchar(10);
 BEGIN
     SELECT hospital_code, case_id, patient_id
       INTO v_hospital_code, v_case_id, v_patient_id
@@ -1692,7 +1701,7 @@ AS $$
 DECLARE
     v_hospital_code  varchar(20);
     v_case_id        uuid;
-    v_patient_id     bigint;
+    v_patient_id     varchar(10);
     v_timepoint_code varchar(30);
     v_token_status   survey.token_status;
 BEGIN
@@ -1734,7 +1743,7 @@ AS $$
 DECLARE
     v_hospital_code  varchar(20);
     v_case_id        uuid;
-    v_patient_id     bigint;
+    v_patient_id     varchar(10);
 BEGIN
     SELECT hospital_code, case_id, patient_id
       INTO v_hospital_code, v_case_id, v_patient_id
@@ -1808,7 +1817,7 @@ CREATE TABLE IF NOT EXISTS messaging.message_outbox (
     message_id                   uuid PRIMARY KEY DEFAULT app_private.gen_uuid_pk(),
     hospital_code                varchar(20) NOT NULL,
     case_id                      uuid NOT NULL,
-    patient_id                   bigint NOT NULL,
+    patient_id                   varchar(10) NOT NULL,
     request_id                   uuid REFERENCES survey.prom_request(request_id),
     channel                      messaging.message_channel NOT NULL DEFAULT 'KAKAO_ALIMTALK',
     vendor_code                  varchar(50) NOT NULL,
@@ -1938,7 +1947,7 @@ AS $$
 DECLARE
     v_hospital_code  varchar(20);
     v_case_id        uuid;
-    v_patient_id     bigint;
+    v_patient_id     varchar(10);
 BEGIN
     IF NEW.request_id IS NULL THEN
         RETURN NEW;

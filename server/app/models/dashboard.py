@@ -105,7 +105,7 @@ class StatisticsResponse(APIModel):
 
 
 class RecentFollowupItem(APIModel):
-    patient_id: int
+    patient_id: str
     case_id: str
     registration_id: str
     patient_initial: str

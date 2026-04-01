@@ -88,7 +88,7 @@ export interface StatisticsData {
 }
 
 export interface RecentFollowup {
-  patient_id: number
+  patient_id: string
   case_id: string
   registration_id: string
   patient_initial: string
