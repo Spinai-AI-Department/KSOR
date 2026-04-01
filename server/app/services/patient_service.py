@@ -206,7 +206,7 @@ async def list_cases(
 
         items.append(
             PatientListItem(
-                patient_id=row["patient_id"],
+                patient_id=str(row["patient_id"]),
                 case_id=row["case_id"],
                 no=no,
                 registration_id=row["registration_id"],
@@ -353,7 +353,7 @@ async def create_patient_case(conn: AsyncConnection, actor_user_id: UUID, payloa
     _log.info("create_patient_case: case_record created successfully")
 
     return PatientCreateResponse(
-        patient_id=patient_id,
+        patient_id=str(patient_id),
         case_id=case_row["case_id"],
         registration_id=case_row["registration_id"],
     )
