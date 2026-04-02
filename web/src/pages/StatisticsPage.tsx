@@ -144,175 +144,202 @@ export function SurgeryAnalysis() {
         </Select>
       </div>
 
-      {/* Loading Spinner */}
-      {loading && (
-        <div className="flex items-center justify-center py-20">
-          <div className="h-12 w-12 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
-        </div>
-      )}
-
       {/* Key Metrics */}
-      {!loading && (
-      <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="p-6 bg-white">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-600">평균 VAS 개선도</div>
-            <TrendingUp className="w-5 h-5 text-green-600" />
-          </div>
-          <div className="text-xl md:text-3xl mb-1">{keyMetrics.avgVasImprovement.toFixed(1)}%</div>
-          <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
-        </Card>
-        <Card className="p-6 bg-white">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-600">평균 ODI 개선도</div>
-            <TrendingUp className="w-5 h-5 text-green-600" />
-          </div>
-          <div className="text-xl md:text-3xl mb-1">{keyMetrics.avgOdiImprovement.toFixed(1)}%</div>
-          <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
-        </Card>
-        <Card className="p-6 bg-white">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-600">환자 만족도</div>
-            <Activity className="w-5 h-5 text-blue-600" />
-          </div>
-          <div className="text-xl md:text-3xl mb-1">{keyMetrics.satisfactionRate.toFixed(1)}%</div>
-          <div className="text-xs text-gray-500">{keyMetrics.totalSatisfaction}명 중 {keyMetrics.satisfiedCount}명</div>
-        </Card>
-        <Card className="p-6 bg-white">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-600">합병증율</div>
-            <TrendingDown className="w-5 h-5 text-red-600" />
-          </div>
-          <div className="text-xl md:text-3xl mb-1">{keyMetrics.reoperationRate.toFixed(1)}%</div>
-          <div className="text-xs text-gray-500">{keyMetrics.totalPatients}명 중 {keyMetrics.reoperationCount}명</div>
-        </Card>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="p-6 bg-white flex items-center justify-center min-h-[100px]">
+              <div className="h-8 w-8 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+            </Card>
+          ))
+        ) : (
+          <>
+            <Card className="p-6 bg-white">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-600">평균 VAS 개선도</div>
+                <TrendingUp className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="text-xl md:text-3xl mb-1">{keyMetrics.avgVasImprovement.toFixed(1)}%</div>
+              <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
+            </Card>
+            <Card className="p-6 bg-white">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-600">평균 ODI 개선도</div>
+                <TrendingUp className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="text-xl md:text-3xl mb-1">{keyMetrics.avgOdiImprovement.toFixed(1)}%</div>
+              <div className="text-xs text-gray-500">환자 {keyMetrics.totalPatients}명 기준</div>
+            </Card>
+            <Card className="p-6 bg-white">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-600">환자 만족도</div>
+                <Activity className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="text-xl md:text-3xl mb-1">{keyMetrics.satisfactionRate.toFixed(1)}%</div>
+              <div className="text-xs text-gray-500">{keyMetrics.totalSatisfaction}명 중 {keyMetrics.satisfiedCount}명</div>
+            </Card>
+            <Card className="p-6 bg-white">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-600">합병증율</div>
+                <TrendingDown className="w-5 h-5 text-red-600" />
+              </div>
+              <div className="text-xl md:text-3xl mb-1">{keyMetrics.reoperationRate.toFixed(1)}%</div>
+              <div className="text-xs text-gray-500">{keyMetrics.totalPatients}명 중 {keyMetrics.reoperationCount}명</div>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Recovery Timeline */}
-        <Card className="p-6 bg-white">
+        <Card className="p-6 bg-white min-h-[340px]">
           <h3 className="text-lg mb-4">평균 회복 추이 (VAS & ODI)</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={recoveryData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="period" tick={{ fontSize: 12 }} />
-              <YAxis yAxisId="left" tick={{ fontSize: 12 }} label={{ value: 'VAS/ODI', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} domain={[0, 1]} label={{ value: 'EQ-5D', angle: 90, position: 'insideRight', fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="VAS_back" stroke="#2563eb" strokeWidth={2} name="허리 통증" dot={{ r: 4 }} />
-              <Line yAxisId="left" type="monotone" dataKey="VAS_leg" stroke="#ef4444" strokeWidth={2} name="다리 통증" dot={{ r: 4 }} />
-              <Line yAxisId="left" type="monotone" dataKey="ODI" stroke="#f59e0b" strokeWidth={2} name="기능 장애" dot={{ r: 4 }} />
-              <Line yAxisId="right" type="monotone" dataKey="EQ5D" stroke="#10b981" strokeWidth={2} name="삶의 질" dot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="flex items-center justify-center h-[280px]">
+              <div className="h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={recoveryData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="period" tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 12 }} label={{ value: 'VAS/ODI', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} domain={[0, 1]} label={{ value: 'EQ-5D', angle: 90, position: 'insideRight', fontSize: 11 }} />
+                <Tooltip />
+                <Legend />
+                <Line yAxisId="left" type="monotone" dataKey="VAS_back" stroke="#2563eb" strokeWidth={2} name="허리 통증" dot={{ r: 4 }} />
+                <Line yAxisId="left" type="monotone" dataKey="VAS_leg" stroke="#ef4444" strokeWidth={2} name="다리 통증" dot={{ r: 4 }} />
+                <Line yAxisId="left" type="monotone" dataKey="ODI" stroke="#f59e0b" strokeWidth={2} name="기능 장애" dot={{ r: 4 }} />
+                <Line yAxisId="right" type="monotone" dataKey="EQ5D" stroke="#10b981" strokeWidth={2} name="삶의 질" dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </Card>
 
-        {/* Patient Satisfaction Radar */}
-        <Card className="p-6 bg-white">
+        <Card className="p-6 bg-white min-h-[340px]">
           <h3 className="text-lg mb-4">환자 만족도 분석</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={satisfactionData}>
-              <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 11 }} />
-              <Radar name="만족도 (%)" dataKey="score" stroke="#2563eb" fill="#2563eb" fillOpacity={0.6} />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="flex items-center justify-center h-[280px]">
+              <div className="h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <RadarChart data={satisfactionData}>
+                <PolarGrid stroke="#e5e7eb" />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 11 }} />
+                <Radar name="만족도 (%)" dataKey="score" stroke="#2563eb" fill="#2563eb" fillOpacity={0.6} />
+                <Tooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
         </Card>
       </div>
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Approach Comparison */}
-        <Card className="p-6 bg-white">
+        <Card className="p-6 bg-white min-h-[340px]">
           <h3 className="text-lg mb-4">수술 접근법별 비교 분석</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={approachComparison}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="category" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
-              {approachComparison.length > 0 &&
-                Object.keys(approachComparison[0])
-                  .filter(k => k !== 'category')
-                  .map((key, i) => {
-                    const colors = ['#2563eb', '#60a5fa', '#93c5fd', '#dbeafe', '#a78bfa', '#f59e0b'];
-                    return <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]} />;
-                  })
-              }
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="text-xs text-gray-500 mt-2">
-            * 수술시간(분), 출혈량(ml), 입원기간(일), 합병증율(%)
-          </div>
+          {loading ? (
+            <div className="flex items-center justify-center h-[280px]">
+              <div className="h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={approachComparison}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="category" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  {approachComparison.length > 0 &&
+                    Object.keys(approachComparison[0])
+                      .filter(k => k !== 'category')
+                      .map((key, i) => {
+                        const colors = ['#2563eb', '#60a5fa', '#93c5fd', '#dbeafe', '#a78bfa', '#f59e0b'];
+                        return <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]} />;
+                      })
+                  }
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="text-xs text-gray-500 mt-2">
+                * 수술시간(분), 출혈량(ml), 입원기간(일), 합병증율(%)
+              </div>
+            </>
+          )}
         </Card>
 
-        {/* Patient Outcomes Scatter */}
-        <Card className="p-6 bg-white">
+        <Card className="p-6 bg-white min-h-[340px]">
           <h3 className="text-lg mb-4">환자 연령별 개선도 분포</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <ScatterChart>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis type="number" dataKey="age" name="연령" tick={{ fontSize: 11 }} label={{ value: '연령', position: 'insideBottom', offset: -5, fontSize: 11 }} />
-              <YAxis type="number" dataKey="improvement" name="개선도" tick={{ fontSize: 11 }} label={{ value: '개선도 (%)', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-              <ZAxis range={[100, 400]} />
-              <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-              <Scatter name="환자" data={patientOutcomes} fill="#2563eb" />
-            </ScatterChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="flex items-center justify-center h-[280px]">
+              <div className="h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <ScatterChart>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis type="number" dataKey="age" name="연령" tick={{ fontSize: 11 }} label={{ value: '연령', position: 'insideBottom', offset: -5, fontSize: 11 }} />
+                <YAxis type="number" dataKey="improvement" name="개선도" tick={{ fontSize: 11 }} label={{ value: '개선도 (%)', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                <ZAxis range={[100, 400]} />
+                <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                <Scatter name="환자" data={patientOutcomes} fill="#2563eb" />
+              </ScatterChart>
+            </ResponsiveContainer>
+          )}
         </Card>
       </div>
 
       {/* Patient Details Table */}
       <Card className="p-4 md:p-6 bg-white">
         <h3 className="text-lg mb-4">최근 환자 성과 상세</h3>
-        <div className="overflow-x-auto">
-        <table className="w-full min-w-[600px]">
-          <thead>
-            <tr className="border-b border-gray-200">
-              <th className="text-left py-3 px-4 text-sm text-gray-600">환자 ID</th>
-              <th className="text-center py-3 px-4 text-sm text-gray-600">연령</th>
-              <th className="text-center py-3 px-4 text-sm text-gray-600">수술 전 VAS</th>
-              <th className="text-center py-3 px-4 text-sm text-gray-600">수술 후 VAS</th>
-              <th className="text-center py-3 px-4 text-sm text-gray-600">개선도</th>
-              <th className="text-center py-3 px-4 text-sm text-gray-600">수술 방법</th>
-              <th className="text-center py-3 px-4 text-sm text-gray-600">만족도</th>
-            </tr>
-          </thead>
-          <tbody>
-            {patientOutcomes.map((patient, index) => (
-              <tr key={patient.id} className="border-b border-gray-100">
-                <td className="text-left py-3 px-4 text-sm">{patient.id}</td>
-                <td className="text-center py-3 px-4 text-sm">{patient.age ? `${patient.age}세` : '—'}</td>
-                <td className="text-center py-3 px-4 text-sm">{patient.preVAS}</td>
-                <td className="text-center py-3 px-4 text-sm">{patient.postVAS}</td>
-                <td className="text-center py-3 px-4 text-sm">
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                    <TrendingUp className="w-3 h-3" />
-                    {typeof patient.improvement === 'number' ? patient.improvement.toFixed(0) : patient.improvement}%
-                  </span>
-                </td>
-                <td className="text-center py-3 px-4 text-sm">
-                  {patient.approach || '—'}
-                </td>
-                <td className="text-center py-3 px-4 text-sm">
-                  {patient.satisfaction != null
-                    ? <span className="text-yellow-500">{'★'.repeat(Math.min(5, Math.max(1, patient.satisfaction)))}</span>
-                    : '—'}
-                </td>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 text-sm text-gray-600">환자 ID</th>
+                <th className="text-center py-3 px-4 text-sm text-gray-600">연령</th>
+                <th className="text-center py-3 px-4 text-sm text-gray-600">수술 전 VAS</th>
+                <th className="text-center py-3 px-4 text-sm text-gray-600">수술 후 VAS</th>
+                <th className="text-center py-3 px-4 text-sm text-gray-600">개선도</th>
+                <th className="text-center py-3 px-4 text-sm text-gray-600">수술 방법</th>
+                <th className="text-center py-3 px-4 text-sm text-gray-600">만족도</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+            </thead>
+            <tbody>
+              {patientOutcomes.map((patient) => (
+                <tr key={patient.id} className="border-b border-gray-100">
+                  <td className="text-left py-3 px-4 text-sm">{patient.id}</td>
+                  <td className="text-center py-3 px-4 text-sm">{patient.age ? `${patient.age}세` : '—'}</td>
+                  <td className="text-center py-3 px-4 text-sm">{patient.preVAS}</td>
+                  <td className="text-center py-3 px-4 text-sm">{patient.postVAS}</td>
+                  <td className="text-center py-3 px-4 text-sm">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                      <TrendingUp className="w-3 h-3" />
+                      {typeof patient.improvement === 'number' ? patient.improvement.toFixed(0) : patient.improvement}%
+                    </span>
+                  </td>
+                  <td className="text-center py-3 px-4 text-sm">
+                    {patient.approach || '—'}
+                  </td>
+                  <td className="text-center py-3 px-4 text-sm">
+                    {patient.satisfaction != null
+                      ? <span className="text-yellow-500">{'★'.repeat(Math.min(5, Math.max(1, patient.satisfaction)))}</span>
+                      : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
       </Card>
-      </>
-      )}
     </div>
   );
 }

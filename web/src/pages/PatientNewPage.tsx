@@ -476,14 +476,6 @@ export function SurgeryDataEntry() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="h-12 w-12 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className={`p-4 md:p-8 min-h-screen bg-gray-50 ${isViewMode ? 'pointer-events-none opacity-90' : ''}`} style={isViewMode ? { pointerEvents: 'auto' } : undefined}>
       {/* Header */}
@@ -502,6 +494,11 @@ export function SurgeryDataEntry() {
         )}
       </div>
 
+      {loading ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center py-20">
+          <div className="h-12 w-12 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+        </div>
+      ) : (
       <fieldset disabled={isViewMode} style={{ border: 'none', padding: 0, margin: 0 }}>
       {/* ── Demographics ── */}
       <div className={sectionCls}>
@@ -911,6 +908,7 @@ export function SurgeryDataEntry() {
       </div>
 
       </fieldset>
+      )}
 
       {submitError && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{submitError}</div>
