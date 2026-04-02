@@ -117,19 +117,19 @@ export function Reports() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">총 수술 건수</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-xl md:text-3xl mb-1">{`${summary.total_surgeries}건`}</div>}
         </Card>
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">평균 수술 성공률</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-xl md:text-3xl mb-1">{`${summary.success_rate}%`}</div>}
         </Card>
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">합병증 발생률</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-xl md:text-3xl mb-1">{`${summary.complication_rate}%`}</div>}
         </Card>
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">평균 입원 기간</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-xl md:text-3xl mb-1">{`${summary.avg_hospital_days}일`}</div>}
         </Card>
@@ -137,7 +137,7 @@ export function Reports() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card className="p-6 bg-white dark:bg-gray-900 min-h-[340px]">
+        <Card className="p-6 bg-white dark:bg-gray-800 min-h-[340px]">
           <h3 className="text-lg mb-4">월별 수술 건수 및 합병증</h3>
           {loading ? (
             <div className="flex items-center justify-center h-[280px]">
@@ -158,7 +158,7 @@ export function Reports() {
           )}
         </Card>
 
-        <Card className="p-6 bg-white dark:bg-gray-900 min-h-[340px]">
+        <Card className="p-6 bg-white dark:bg-gray-800 min-h-[340px]">
           <h3 className="text-lg mb-4">수술 방법별 성과</h3>
           {loading ? (
             <div className="flex items-center justify-center h-[280px]">
@@ -181,7 +181,7 @@ export function Reports() {
       </div>
 
       {/* Detailed Table */}
-      <Card className="p-4 md:p-6 bg-white dark:bg-gray-900">
+      <Card className="p-4 md:p-6 bg-white dark:bg-gray-800">
         <h3 className="text-lg mb-4">월별 수술 현황 상세</h3>
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -191,7 +191,7 @@ export function Reports() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[500px]">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
+                <tr className="border-b border-gray-200 dark:border-gray-600">
                   <th className="text-left py-3 px-4 text-sm text-gray-600 dark:text-gray-400">월</th>
                   <th className="text-right py-3 px-4 text-sm text-gray-600 dark:text-gray-400">수술 건수</th>
                   <th className="text-right py-3 px-4 text-sm text-gray-600 dark:text-gray-400">합병증</th>

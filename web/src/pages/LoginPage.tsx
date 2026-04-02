@@ -41,7 +41,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800 flex">
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-gray-900 dark:bg-gray-950 flex-col justify-between p-12">
         <div className="flex items-center gap-3">
@@ -109,7 +109,7 @@ export function LoginPage() {
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setFieldErrors((prev) => { const { '이메일': _, ...rest } = prev; return rest; }); }}
                   placeholder="example@ksor.kr"
-                  className={`w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 ${fieldErrors['이메일'] ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                  className={`w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-500 ${fieldErrors['이메일'] ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                 />
               </div>
               {fieldErrors['이메일'] && <p className="text-xs text-red-500 mt-1">{fieldErrors['이메일']}</p>}
@@ -126,7 +126,7 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setFieldErrors((prev) => { const { '비밀번호': _, ...rest } = prev; return rest; }); }}
                   placeholder="비밀번호를 입력하세요"
-                  className={`w-full pl-10 pr-10 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 ${fieldErrors['비밀번호'] ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                  className={`w-full pl-10 pr-10 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-500 ${fieldErrors['비밀번호'] ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                 />
                 <button
                   type="button"
@@ -151,7 +151,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+              className="w-full py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg text-sm hover:bg-gray-800 dark:hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
                 <>
@@ -174,7 +174,7 @@ export function LoginPage() {
           </p>
 
           {/* Demo Account */}
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">데모 계정으로 빠르게 접속하기</p>
             <div className="flex gap-2">
               <button

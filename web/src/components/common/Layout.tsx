@@ -32,7 +32,7 @@ export function Layout() {
   const SidebarContent = () => (
     <>
       {/* Logo */}
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-6 border-b border-gray-200 dark:border-gray-600">
         <img src={logoImage} alt="KOMISS Logo" className="w-24 h-24 mx-auto" />
       </div>
 
@@ -48,7 +48,7 @@ export function Layout() {
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
                     isActive(item.path)
-                      ? "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      ? "bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-100"
                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
@@ -62,7 +62,7 @@ export function Layout() {
       </nav>
 
       {/* User Info + Logout */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-600">
         <Link
           to="/profile"
           onClick={() => setSidebarOpen(false)}
@@ -100,7 +100,7 @@ export function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-48 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transform transition-transform duration-200 ease-in-out
+        className={`fixed md:static inset-y-0 left-0 z-50 w-48 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-600 flex flex-col transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         <SidebarContent />
@@ -109,7 +109,7 @@ export function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile top bar */}
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-600 flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-1.5 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"

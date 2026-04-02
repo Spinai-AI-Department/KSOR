@@ -48,19 +48,19 @@ export function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 md:mb-8">
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">총 수술 건수</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-2xl md:text-4xl">{stats.total_surgeries}</div>}
         </Card>
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">이번 달 수술</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-2xl md:text-4xl">{stats.monthly_surgeries}</div>}
         </Card>
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">PROM 대기 건수</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-2xl md:text-4xl">{`${stats.prom_pending_cases} 건`}</div>}
         </Card>
-        <Card className="p-6 bg-white dark:bg-gray-900">
+        <Card className="p-6 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">합병증 건수</div>
           {loading ? <div className="h-6 w-6 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin mt-2" /> : <div className="text-2xl md:text-4xl">{`${stats.complications_count} 건`}</div>}
         </Card>
@@ -69,7 +69,7 @@ export function Dashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 md:mb-8">
         {/* VAS & ODI Chart */}
-        <Card className="p-6 bg-white dark:bg-gray-900 relative min-h-[320px]">
+        <Card className="p-6 bg-white dark:bg-gray-800 relative min-h-[320px]">
           <h3 className="text-lg mb-4">환자 회복 추이 (VAS & ODI)</h3>
           {loading ? (
             <div className="flex items-center justify-center h-[250px]">
@@ -109,7 +109,7 @@ export function Dashboard() {
         </Card>
 
         {/* Surgery Type Distribution */}
-        <Card className="p-6 bg-white dark:bg-gray-900 relative min-h-[320px]">
+        <Card className="p-6 bg-white dark:bg-gray-800 relative min-h-[320px]">
           <h3 className="text-lg mb-4">수술 접근법 비율</h3>
           {loading ? (
             <div className="flex items-center justify-center h-[250px]">

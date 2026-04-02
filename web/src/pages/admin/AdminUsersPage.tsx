@@ -208,9 +208,9 @@ export function AdminUsersPage() {
 
         {/* Tab 1: Pending Users */}
         <TabsContent value="pending">
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
             <table className="w-full min-w-[700px] text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+              <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
@@ -221,7 +221,7 @@ export function AdminUsersPage() {
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-600">
                 {pendingLoading ? (
                   <tr>
                     <td colSpan={7} className="py-16 text-center">
@@ -233,7 +233,7 @@ export function AdminUsersPage() {
                     <td colSpan={7} className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">승인 대기 중인 사용자가 없습니다.</td>
                   </tr>
                 ) : pendingData.items.map((user) => (
-                  <tr key={user.user_id} className="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <tr key={user.user_id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{user.full_name}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{user.login_id}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
@@ -285,9 +285,9 @@ export function AdminUsersPage() {
 
         {/* Tab 2: All Users */}
         <TabsContent value="all">
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
             <table className="w-full min-w-[800px] text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+              <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
@@ -299,7 +299,7 @@ export function AdminUsersPage() {
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-600">
                 {allLoading ? (
                   <tr>
                     <td colSpan={8} className="py-16 text-center">
@@ -311,7 +311,7 @@ export function AdminUsersPage() {
                     <td colSpan={8} className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">사용자가 없습니다.</td>
                   </tr>
                 ) : allData.items.map((user) => (
-                  <tr key={user.user_id} className="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <tr key={user.user_id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{user.full_name}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{user.login_id}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
@@ -364,9 +364,9 @@ export function AdminUsersPage() {
 
         {/* Tab 3: Approval Logs */}
         <TabsContent value="logs">
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
             <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+              <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">구분</th>
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
@@ -378,7 +378,7 @@ export function AdminUsersPage() {
                   <th className="px-4 py-3 text-left font-medium whitespace-nowrap">일시</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-600">
                 {logLoading ? (
                   <tr>
                     <td colSpan={8} className="py-16 text-center">
@@ -390,7 +390,7 @@ export function AdminUsersPage() {
                     <td colSpan={8} className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">로그가 없습니다.</td>
                   </tr>
                 ) : logData.items.map((log: ApprovalLogItem, idx: number) => (
-                  <tr key={`${log.user_id}-${log.action}-${idx}`} className="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <tr key={`${log.user_id}-${log.action}-${idx}`} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-4 py-3 whitespace-nowrap">{actionBadge(log.action)}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{log.full_name}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{log.login_id}</td>

@@ -121,7 +121,7 @@ export function ProfilePage() {
         </div>
 
         {/* Profile Card */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-6 flex items-center gap-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-600 p-6 mb-6 flex items-center gap-5">
           <div className="w-16 h-16 rounded-full bg-gray-900 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
             <span className="text-white text-2xl">{avatarInitial}</span>
           </div>
@@ -152,7 +152,7 @@ export function ProfilePage() {
         {/* ── Tab: 기본 정보 ─────────────────────────────────── */}
         {activeTab === "info" && (
           <form onSubmit={handleInfoSubmit}>
-            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-600 divide-y divide-gray-100 dark:divide-gray-600">
               {/* 개인 정보 */}
               <div className="p-6">
                 <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-4 flex items-center gap-2">
@@ -193,7 +193,7 @@ export function ProfilePage() {
               <button
                 type="submit"
                 disabled={infoLoading}
-                className="px-6 py-2.5 bg-gray-900 dark:bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg text-sm hover:bg-gray-800 dark:hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {infoLoading ? <><Spinner /> 저장 중...</> : "변경사항 저장"}
               </button>
@@ -204,7 +204,7 @@ export function ProfilePage() {
         {/* ── Tab: 비밀번호 변경 ──────────────────────────────── */}
         {activeTab === "password" && (
           <form onSubmit={handlePwSubmit}>
-            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
               <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-5 flex items-center gap-2">
                 <Lock className="w-4 h-4" /> 비밀번호 변경
               </h2>
@@ -238,7 +238,7 @@ export function ProfilePage() {
               <button
                 type="submit"
                 disabled={pwLoading}
-                className="px-6 py-2.5 bg-gray-900 dark:bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg text-sm hover:bg-gray-800 dark:hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {pwLoading ? <><Spinner /> 변경 중...</> : "비밀번호 변경"}
               </button>
@@ -248,7 +248,7 @@ export function ProfilePage() {
 
         {/* ── Tab: 설정 ──────────────────────────────────────── */}
         {activeTab === "settings" && (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
             <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-5 flex items-center gap-2">
               <Monitor className="w-4 h-4" /> 화면 모드
             </h2>
@@ -260,8 +260,8 @@ export function ProfilePage() {
                   onClick={() => setTheme(opt.value)}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
                     theme === opt.value
-                      ? "border-gray-900 dark:border-gray-400 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      ? "border-gray-900 dark:border-gray-400 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                   }`}
                 >
                   {opt.icon}
@@ -297,8 +297,8 @@ function Field({
           readOnly={readOnly}
           className={`w-full ${icon ? "pl-9" : "pl-3"} pr-3 py-2.5 border rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:outline-none ${
             readOnly
-              ? "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 cursor-not-allowed border-gray-200 dark:border-gray-700"
-              : "focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600"
+              ? "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed border-gray-200 dark:border-gray-600"
+              : "focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
           }`}
         />
       </div>
@@ -322,7 +322,7 @@ function PwField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full pl-9 pr-10 py-2.5 border rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent bg-gray-50 dark:bg-gray-800 ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-gray-600'}`}
+          className={`w-full pl-9 pr-10 py-2.5 border rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent bg-gray-50 dark:bg-gray-700 ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-gray-600'}`}
         />
         <button
           type="button"
