@@ -219,7 +219,7 @@ export function ProfilePage() {
                     label="전문 분야"
                     value={infoForm.specialty}
                     onChange={(v) => handleInfoChange("specialty", v)}
-                    placeholder="신경외과"
+                    placeholder="척추"
                     readOnly
                   />
                   <Field
