@@ -104,7 +104,7 @@ export function LoginPage() {
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
-                  type="email"
+                  type="text"
                   data-field="이메일"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setFieldErrors((prev) => { const { '이메일': _, ...rest } = prev; return rest; }); }}
