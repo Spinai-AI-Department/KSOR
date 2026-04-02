@@ -214,27 +214,27 @@ export function AdminUsersPage() {
             <div className="py-16 text-center text-gray-400 text-sm">승인 대기 중인 사용자가 없습니다.</div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[700px] text-sm">
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">이름</th>
-                    <th className="px-4 py-3 text-left font-medium">아이디</th>
-                    <th className="px-4 py-3 text-left font-medium">역할</th>
-                    <th className="px-4 py-3 text-left font-medium">병원</th>
-                    <th className="px-4 py-3 text-left font-medium">이메일</th>
-                    <th className="px-4 py-3 text-left font-medium">신청일</th>
-                    <th className="px-4 py-3 text-left font-medium">작업</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이메일</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">신청일</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {pendingData.items.map((user) => (
                     <tr key={user.user_id} className="bg-white hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{user.full_name}</td>
-                      <td className="px-4 py-3 text-gray-600">{user.login_id}</td>
-                      <td className="px-4 py-3">{roleLabel(user.role_code)}</td>
-                      <td className="px-4 py-3 text-gray-600">{user.hospital_code ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{user.email ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{user.full_name}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.login_id}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.hospital_code ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.email ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                         {new Date(user.created_at).toLocaleDateString("ko-KR")}
                       </td>
                       <td className="px-4 py-3">
@@ -287,31 +287,31 @@ export function AdminUsersPage() {
             <div className="py-16 text-center text-gray-400 text-sm">사용자가 없습니다.</div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">이름</th>
-                    <th className="px-4 py-3 text-left font-medium">아이디</th>
-                    <th className="px-4 py-3 text-left font-medium">역할</th>
-                    <th className="px-4 py-3 text-left font-medium">병원</th>
-                    <th className="px-4 py-3 text-left font-medium">상태</th>
-                    <th className="px-4 py-3 text-left font-medium">가입일</th>
-                    <th className="px-4 py-3 text-left font-medium">마지막 로그인</th>
-                    <th className="px-4 py-3 text-left font-medium">작업</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">상태</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">가입일</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">마지막 로그인</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {allData.items.map((user) => (
                     <tr key={user.user_id} className="bg-white hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{user.full_name}</td>
-                      <td className="px-4 py-3 text-gray-600">{user.login_id}</td>
-                      <td className="px-4 py-3">{roleLabel(user.role_code)}</td>
-                      <td className="px-4 py-3 text-gray-600">{user.hospital_code ?? "—"}</td>
-                      <td className="px-4 py-3">{statusBadge(user.is_active)}</td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{user.full_name}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.login_id}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.hospital_code ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{statusBadge(user.is_active)}</td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                         {new Date(user.created_at).toLocaleDateString("ko-KR")}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                         {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString("ko-KR") : "—"}
                       </td>
                       <td className="px-4 py-3">
@@ -362,28 +362,28 @@ export function AdminUsersPage() {
             <div className="py-16 text-center text-gray-400 text-sm">로그가 없습니다.</div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">구분</th>
-                    <th className="px-4 py-3 text-left font-medium">이름</th>
-                    <th className="px-4 py-3 text-left font-medium">아이디</th>
-                    <th className="px-4 py-3 text-left font-medium">역할</th>
-                    <th className="px-4 py-3 text-left font-medium">병원</th>
-                    <th className="px-4 py-3 text-left font-medium">처리자</th>
-                    <th className="px-4 py-3 text-left font-medium">거절 사유</th>
-                    <th className="px-4 py-3 text-left font-medium">일시</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">구분</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">처리자</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">거절 사유</th>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">일시</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {logData.items.map((log: ApprovalLogItem, idx: number) => (
                     <tr key={`${log.user_id}-${log.action}-${idx}`} className="bg-white hover:bg-gray-50">
-                      <td className="px-4 py-3">{actionBadge(log.action)}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{log.full_name}</td>
-                      <td className="px-4 py-3 text-gray-600">{log.login_id}</td>
-                      <td className="px-4 py-3 text-gray-600">{roleLabel(log.role_code)}</td>
-                      <td className="px-4 py-3 text-gray-600">{log.hospital_code ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{log.actor_name ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{actionBadge(log.action)}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{log.full_name}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.login_id}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{roleLabel(log.role_code)}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.hospital_code ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.actor_name ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{log.rejection_reason ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                         {new Date(log.acted_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
