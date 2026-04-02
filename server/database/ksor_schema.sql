@@ -842,26 +842,17 @@ RETURNS TABLE (
     is_locked                 boolean,
     failed_login_count        integer,
     last_password_changed_at  timestamptz,
-    approval_status           auth.signup_status
+    approval_status           auth.signup_status,
+    rejection_reason          text
 )
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = pg_catalog, auth
 AS $$
-    SELECT ua.user_id,
-           ua.hospital_code,
-           ua.login_id,
-           ua.password_hash,
-           ua.password_algo,
-           ua.full_name,
-           ua.role_code,
-           ua.is_first_login,
-           ua.password_reset_required,
-           ua.is_active,
-           ua.is_locked,
-           ua.failed_login_count,
-           ua.last_password_changed_at,
-           ua.approval_status
+    SELECT ua.user_id, ua.hospital_code, ua.login_id, ua.password_hash, ua.password_algo,
+           ua.full_name, ua.role_code, ua.is_first_login, ua.password_reset_required,
+           ua.is_active, ua.is_locked, ua.failed_login_count, ua.last_password_changed_at,
+           ua.approval_status, ua.rejection_reason
       FROM auth.user_account ua
      WHERE lower(ua.login_id) = lower(p_login_id)
      LIMIT 1;
