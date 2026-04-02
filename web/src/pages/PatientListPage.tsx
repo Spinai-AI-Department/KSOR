@@ -434,13 +434,7 @@ function PatientListTab({ cache, onCacheUpdate }: {
       </div>
 
       {/* Patient Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden relative">
-        {/* Loading Spinner Overlay */}
-        {listLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-[1px]">
-            <div className="h-12 w-12 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
-          </div>
-        )}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1200px]">
             <thead>
@@ -462,7 +456,14 @@ function PatientListTab({ cache, onCacheUpdate }: {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((patient, index) => (
+              {listLoading && (
+                <tr>
+                  <td colSpan={14} className="py-16 text-center">
+                    <div className="inline-block h-12 w-12 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+                  </td>
+                </tr>
+              )}
+              {!listLoading && filtered.map((patient, index) => (
                 <tr
                   key={`${patient.id}-${index}`}
                   className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
