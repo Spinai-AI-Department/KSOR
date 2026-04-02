@@ -208,65 +208,69 @@ export function AdminUsersPage() {
 
         {/* Tab 1: Pending Users */}
         <TabsContent value="pending">
-          {pendingLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
-          ) : !pendingData || pendingData.items.length === 0 ? (
-            <div className="py-16 text-center text-gray-400 text-sm">승인 대기 중인 사용자가 없습니다.</div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full min-w-[700px] text-sm">
-                <thead className="bg-gray-50 text-gray-600">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full min-w-[700px] text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이메일</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">신청일</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {pendingLoading ? (
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이메일</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">신청일</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
+                    <td colSpan={7} className="py-16 text-center">
+                      <div className="inline-block h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {pendingData.items.map((user) => (
-                    <tr key={user.user_id} className="bg-white hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{user.full_name}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.login_id}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.hospital_code ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.email ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {new Date(user.created_at).toLocaleDateString("ko-KR")}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-green-700 border-green-300 hover:bg-green-50"
-                            onClick={() => handleApprove(user)}
-                            disabled={actionLoading === user.user_id}
-                          >
-                            {actionLoading === user.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
-                            승인
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-700 border-red-300 hover:bg-red-50"
-                            onClick={() => setRejectTarget(user)}
-                            disabled={actionLoading === user.user_id}
-                          >
-                            <XCircle className="w-3 h-3 mr-1" />
-                            거절
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ) : !pendingData || pendingData.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-16 text-center text-gray-400 text-sm">승인 대기 중인 사용자가 없습니다.</td>
+                  </tr>
+                ) : pendingData.items.map((user) => (
+                  <tr key={user.user_id} className="bg-white hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{user.full_name}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.login_id}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.hospital_code ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.email ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      {new Date(user.created_at).toLocaleDateString("ko-KR")}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-700 border-green-300 hover:bg-green-50"
+                          onClick={() => handleApprove(user)}
+                          disabled={actionLoading === user.user_id}
+                        >
+                          {actionLoading === user.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+                          승인
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-700 border-red-300 hover:bg-red-50"
+                          onClick={() => setRejectTarget(user)}
+                          disabled={actionLoading === user.user_id}
+                        >
+                          <XCircle className="w-3 h-3 mr-1" />
+                          거절
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {pendingData && pendingData.pagination.total_pages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
@@ -281,67 +285,71 @@ export function AdminUsersPage() {
 
         {/* Tab 2: All Users */}
         <TabsContent value="all">
-          {allLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
-          ) : !allData || allData.items.length === 0 ? (
-            <div className="py-16 text-center text-gray-400 text-sm">사용자가 없습니다.</div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full min-w-[800px] text-sm">
-                <thead className="bg-gray-50 text-gray-600">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full min-w-[800px] text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">상태</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">가입일</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">마지막 로그인</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {allLoading ? (
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">상태</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">가입일</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">마지막 로그인</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">작업</th>
+                    <td colSpan={8} className="py-16 text-center">
+                      <div className="inline-block h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {allData.items.map((user) => (
-                    <tr key={user.user_id} className="bg-white hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{user.full_name}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.login_id}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.hospital_code ?? "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{statusBadge(user.is_active)}</td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {new Date(user.created_at).toLocaleDateString("ko-KR")}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString("ko-KR") : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {user.approval_status === "APPROVED" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className={user.is_active
-                              ? "text-orange-700 border-orange-300 hover:bg-orange-50"
-                              : "text-green-700 border-green-300 hover:bg-green-50"
-                            }
-                            onClick={() => handleToggleActive(user)}
-                            disabled={actionLoading === user.user_id}
-                          >
-                            {actionLoading === user.user_id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : user.is_active ? (
-                              <><PauseCircle className="w-3 h-3 mr-1" />정지</>
-                            ) : (
-                              <><PlayCircle className="w-3 h-3 mr-1" />활성화</>
-                            )}
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ) : !allData || allData.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-16 text-center text-gray-400 text-sm">사용자가 없습니다.</td>
+                  </tr>
+                ) : allData.items.map((user) => (
+                  <tr key={user.user_id} className="bg-white hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{user.full_name}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.login_id}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{roleLabel(user.role_code)}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{user.hospital_code ?? "—"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{statusBadge(user.is_active)}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      {new Date(user.created_at).toLocaleDateString("ko-KR")}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString("ko-KR") : "—"}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {user.approval_status === "APPROVED" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={user.is_active
+                            ? "text-orange-700 border-orange-300 hover:bg-orange-50"
+                            : "text-green-700 border-green-300 hover:bg-green-50"
+                          }
+                          onClick={() => handleToggleActive(user)}
+                          disabled={actionLoading === user.user_id}
+                        >
+                          {actionLoading === user.user_id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : user.is_active ? (
+                            <><PauseCircle className="w-3 h-3 mr-1" />정지</>
+                          ) : (
+                            <><PlayCircle className="w-3 h-3 mr-1" />활성화</>
+                          )}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {allData && allData.pagination.total_pages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
@@ -356,44 +364,48 @@ export function AdminUsersPage() {
 
         {/* Tab 3: Approval Logs */}
         <TabsContent value="logs">
-          {logLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
-          ) : !logData || logData.items.length === 0 ? (
-            <div className="py-16 text-center text-gray-400 text-sm">로그가 없습니다.</div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead className="bg-gray-50 text-gray-600">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">구분</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">처리자</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">거절 사유</th>
+                  <th className="px-4 py-3 text-left font-medium whitespace-nowrap">일시</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {logLoading ? (
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">구분</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">이름</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">아이디</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">역할</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">병원</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">처리자</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">거절 사유</th>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">일시</th>
+                    <td colSpan={8} className="py-16 text-center">
+                      <div className="inline-block h-10 w-10 rounded-full border-[3px] border-blue-200 border-t-blue-400 animate-spin" />
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {logData.items.map((log: ApprovalLogItem, idx: number) => (
-                    <tr key={`${log.user_id}-${log.action}-${idx}`} className="bg-white hover:bg-gray-50">
-                      <td className="px-4 py-3 whitespace-nowrap">{actionBadge(log.action)}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{log.full_name}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.login_id}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{roleLabel(log.role_code)}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.hospital_code ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.actor_name ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{log.rejection_reason ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {new Date(log.acted_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ) : !logData || logData.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-16 text-center text-gray-400 text-sm">로그가 없습니다.</td>
+                  </tr>
+                ) : logData.items.map((log: ApprovalLogItem, idx: number) => (
+                  <tr key={`${log.user_id}-${log.action}-${idx}`} className="bg-white hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap">{actionBadge(log.action)}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{log.full_name}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.login_id}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{roleLabel(log.role_code)}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.hospital_code ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{log.actor_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{log.rejection_reason ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      {new Date(log.acted_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {logData && logData.pagination.total_pages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
