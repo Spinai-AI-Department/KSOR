@@ -178,7 +178,7 @@ export function LoginPage() {
             <p className="text-xs text-gray-500 mb-3">데모 계정으로 빠르게 접속하기</p>
             <button
               type="button"
-              onClick={() => { setEmail("admin@ksor.kr"); setPassword("Admin1234!"); setError(""); setFieldErrors({}); }}
+              onClick={() => { setEmail("superadmin"); setPassword("Admin1234!"); setError(""); setFieldErrors({}); }}
               className="w-full py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors"
             >
               관리자 (ADMIN)
