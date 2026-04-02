@@ -179,15 +179,31 @@ export function LoginPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { setEmail("admin@ksor.kr"); setPassword("Admin1234!"); setError(""); setFieldErrors({}); }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors"
+                disabled={loading}
+                onClick={async () => {
+                  setError(""); setFieldErrors({});
+                  setLoading(true);
+                  const result = await login("admin@ksor.kr", "Admin1234!");
+                  setLoading(false);
+                  if (result.success) navigate("/");
+                  else setError(result.error ?? "로그인에 실패했습니다.");
+                }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors disabled:opacity-60"
               >
                 관리자 (ADMIN)
               </button>
               <button
                 type="button"
-                onClick={() => { setEmail("doctor@ksor.kr"); setPassword("Doctor123!"); setError(""); setFieldErrors({}); }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors"
+                disabled={loading}
+                onClick={async () => {
+                  setError(""); setFieldErrors({});
+                  setLoading(true);
+                  const result = await login("doctor@ksor.kr", "Doctor123!");
+                  setLoading(false);
+                  if (result.success) navigate("/");
+                  else setError(result.error ?? "로그인에 실패했습니다.");
+                }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white transition-colors disabled:opacity-60"
               >
                 연구책임자 (PI)
               </button>
