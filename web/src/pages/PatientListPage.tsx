@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router";
-import { Search, ChevronDown, Edit, MoreHorizontal, Plus, X, Calendar } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Edit, MoreHorizontal, Plus, X, SlidersHorizontal } from "lucide-react";
 import { patientService, type Patient as ApiPatient } from "../api/patients";
 import { dashboardService } from "../api/dashboard";
 import { ApiValidationError, translateValidationMsg } from "../api/client";
@@ -105,9 +105,31 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const location = useLocation();
   const [searchId, setSearchId] = useState("");
   const [searchName, setSearchName] = useState("");
-  const [selectedPeriod, setSelectedPeriod] = useState("전체");
-  const [periodOpen, setPeriodOpen] = useState(false);
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
+
+  // Filter sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [expandedSections, setExpandedSections] = useState({
+    sex: true, surgeryDate: true, diagnosis: true, procedure: true, followup: true,
+  });
+  const [filterSex, setFilterSex] = useState("");
+  const [filterSurgeryFrom, setFilterSurgeryFrom] = useState("");
+  const [filterSurgeryTo, setFilterSurgeryTo] = useState("");
+  const [filterDiagnosis, setFilterDiagnosis] = useState("");
+  const [filterProcedure, setFilterProcedure] = useState("");
+  const [filterFollowup, setFilterFollowup] = useState("");
+
+  const activeFilterCount = [filterSex, filterSurgeryFrom || filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setFilterSex(""); setFilterSurgeryFrom(""); setFilterSurgeryTo("");
+    setFilterDiagnosis(""); setFilterProcedure(""); setFilterFollowup("");
+    setSearchId(""); setSearchName("");
+    setPage(1);
+  };
+
+  const toggleSection = (key: keyof typeof expandedSections) =>
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
 
   // Patient list state — seed from cache if available
@@ -175,13 +197,21 @@ function PatientListTab({ cache, onCacheUpdate }: {
     setListLoading(true);
     try {
       const keyword = [searchId, searchName].filter(Boolean).join(' ').trim() || undefined;
-      const periodFilterMap: Record<string, string | undefined> = {
-        '전체': undefined, 'Pre-op': 'PRE_OP', '1개월': 'POST_1M',
-        '3개월': 'POST_3M', '6개월': 'POST_6M', '1년': 'POST_1Y',
+      const followupMap: Record<string, string> = {
+        'Pre-op': 'PRE_OP', '1개월': 'POST_1M', '3개월': 'POST_3M', '6개월': 'POST_6M', '1년': 'POST_1Y',
       };
-      const status_filter = periodFilterMap[selectedPeriod];
       const res = await patientService.list(
-        { keyword, status_filter, page, size: PAGE_SIZE },
+        {
+          keyword,
+          page,
+          size: PAGE_SIZE,
+          sex: filterSex || undefined,
+          surgery_date_from: filterSurgeryFrom || undefined,
+          surgery_date_to: filterSurgeryTo || undefined,
+          diagnosis_code: filterDiagnosis || undefined,
+          procedure_code: filterProcedure || undefined,
+          status_filter: filterFollowup ? followupMap[filterFollowup] : undefined,
+        },
         token
       );
       // Map ApiPatient to local Patient type
@@ -268,12 +298,14 @@ function PatientListTab({ cache, onCacheUpdate }: {
     } finally {
       setListLoading(false);
     }
-  }, [token, searchId, searchName, selectedPeriod, page, onCacheUpdate]);
+  }, [token, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, page, onCacheUpdate]);
 
   // Skip initial fetch if mounted with cached data (default filters, page 1)
   const skipInitialFetch = useCallback(() => {
-    return hasCacheRef && page === 1 && searchId === '' && searchName === '' && selectedPeriod === '전체';
-  }, [hasCacheRef, page, searchId, searchName, selectedPeriod]);
+    return hasCacheRef && page === 1 && searchId === '' && searchName === ''
+      && !filterSex && !filterSurgeryFrom && !filterSurgeryTo
+      && !filterDiagnosis && !filterProcedure && !filterFollowup;
+  }, [hasCacheRef, page, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup]);
 
   useEffect(() => {
     if (skipInitialFetch()) return;
@@ -411,61 +443,179 @@ function PatientListTab({ cache, onCacheUpdate }: {
         </div>
       )}
 
-      {/* Search & Filter Bar */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setSidebarOpen(o => !o)}
+          className="relative flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          필터
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center font-medium">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="환자 번호"
             value={searchId}
-            onChange={(e) => setSearchId(e.target.value)}
-            className="pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+            onChange={(e) => { setSearchId(e.target.value); setPage(1); }}
+            className="pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
           />
         </div>
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="이름"
-            value={searchName}
-            onChange={(e) => setSearchName(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
-          />
-        </div>
-        <div className="relative">
-          <button
-            onClick={() => setPeriodOpen(!periodOpen)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none w-48"
-          >
-            <span className="flex-1 text-left text-gray-600 dark:text-gray-400">
-              {selectedPeriod === "전체" ? "팔로업 기간" : selectedPeriod}
-            </span>
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          </button>
-          {periodOpen && (
-            <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10">
-              {followUpPeriods.map((period) => (
-                <button
-                  key={period}
-                  onClick={() => { setSelectedPeriod(period); setPeriodOpen(false); }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 first:rounded-t-lg last:rounded-b-lg ${
-                    selectedPeriod === period ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700" : "text-gray-700 dark:text-gray-300"
-                  }`}
-                >
-                  {period}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <input
+          type="text"
+          placeholder="이름"
+          value={searchName}
+          onChange={(e) => { setSearchName(e.target.value); setPage(1); }}
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+        />
         <button
           onClick={() => setShowNewPatientModal(true)}
-          className="ml-auto flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
+          className="ml-auto flex items-center gap-2 px-5 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
         >
           <Plus className="w-4 h-4" />
           신규 등록
         </button>
       </div>
+
+      {/* Main content: sidebar + table */}
+      <div className="flex gap-4 items-start">
+
+        {/* ── Filter Sidebar ── */}
+        {sidebarOpen && (
+          <div className="w-52 flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">필터</span>
+              {activeFilterCount > 0 && (
+                <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">초기화</button>
+              )}
+            </div>
+
+            {/* 성별 */}
+            <div className="border-b border-gray-100 dark:border-gray-700">
+              <button onClick={() => toggleSection('sex')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                성별
+                {expandedSections.sex ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+              </button>
+              {expandedSections.sex && (
+                <div className="px-4 pb-3 space-y-2">
+                  {[{ label: "전체", value: "" }, { label: "남성 (M)", value: "M" }, { label: "여성 (F)", value: "F" }].map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="sex" checked={filterSex === opt.value} onChange={() => { setFilterSex(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 수술일 */}
+            <div className="border-b border-gray-100 dark:border-gray-700">
+              <button onClick={() => toggleSection('surgeryDate')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                수술일
+                {expandedSections.surgeryDate ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+              </button>
+              {expandedSections.surgeryDate && (
+                <div className="px-4 pb-3 space-y-2">
+                  <div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">시작</p>
+                    <input type="date" value={filterSurgeryFrom} onChange={(e) => { setFilterSurgeryFrom(e.target.value); setPage(1); }}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">종료</p>
+                    <input type="date" value={filterSurgeryTo} onChange={(e) => { setFilterSurgeryTo(e.target.value); setPage(1); }}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 진단명 */}
+            <div className="border-b border-gray-100 dark:border-gray-700">
+              <button onClick={() => toggleSection('diagnosis')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                진단명
+                {expandedSections.diagnosis ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+              </button>
+              {expandedSections.diagnosis && (
+                <div className="px-4 pb-3 space-y-2">
+                  {[
+                    { label: "전체", value: "" },
+                    { label: "추간판 탈출증 (HNP)", value: "HNP" },
+                    { label: "척추관 협착증", value: "STENOSIS" },
+                    { label: "척추전방전위증", value: "SPONDY" },
+                    { label: "요추 디스크 (D001)", value: "D001" },
+                    { label: "경추 디스크 (D003)", value: "D003" },
+                  ].map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="diagnosis" checked={filterDiagnosis === opt.value} onChange={() => { setFilterDiagnosis(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 leading-tight">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 수술 방법 */}
+            <div className="border-b border-gray-100 dark:border-gray-700">
+              <button onClick={() => toggleSection('procedure')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                수술 방법
+                {expandedSections.procedure ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+              </button>
+              {expandedSections.procedure && (
+                <div className="px-4 pb-3 space-y-2">
+                  {[
+                    { label: "전체", value: "" },
+                    { label: "Full-endoscopic", value: "FULL_ENDO" },
+                    { label: "UBE", value: "UBE" },
+                    { label: "Spinoscopy", value: "SPINOSCOPY" },
+                    { label: "내시경 디스크 절제 (P001)", value: "P001" },
+                    { label: "UBE 감압술 (P002)", value: "P002" },
+                    { label: "현미경 절제 (P003)", value: "P003" },
+                  ].map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="procedure" checked={filterProcedure === opt.value} onChange={() => { setFilterProcedure(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 leading-tight">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Follow-up 시점 */}
+            <div>
+              <button onClick={() => toggleSection('followup')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                Follow-up 시점
+                {expandedSections.followup ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+              </button>
+              {expandedSections.followup && (
+                <div className="px-4 pb-3 space-y-2">
+                  {[
+                    { label: "전체", value: "" },
+                    { label: "Pre-op", value: "Pre-op" },
+                    { label: "1개월", value: "1개월" },
+                    { label: "3개월", value: "3개월" },
+                    { label: "6개월", value: "6개월" },
+                    { label: "1년", value: "1년" },
+                  ].map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="followup" checked={filterFollowup === opt.value} onChange={() => { setFilterFollowup(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Table area ── */}
+        <div className="flex-1 min-w-0">
 
       {/* Patient Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm mb-6 overflow-hidden">
@@ -596,6 +746,9 @@ function PatientListTab({ cache, onCacheUpdate }: {
           </div>
         </div>
       </div>
+
+        </div>{/* end table area */}
+      </div>{/* end flex row */}
 
       {/* 최근 환자 F/U 현황 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden">

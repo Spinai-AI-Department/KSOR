@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, Navigate } from "react-router";
-import { LayoutGrid, Users, BarChart3, FileText, ClipboardList, LogOut, ChevronRight, Menu, ShieldCheck } from "lucide-react";
+import { LayoutGrid, Users, BarChart3, FileText, LogOut, ChevronRight, Menu, ShieldCheck } from "lucide-react";
 import logoImage from "@/assets/logo.png";
 import { useAuth } from "@/context/AuthContext";
 
@@ -18,7 +18,6 @@ export function Layout() {
   const navItems = [
     { path: "/", icon: LayoutGrid, label: "대시보드" },
     { path: "/patients", icon: Users, label: "환자 목록" },
-    { path: "/surgery-entry", icon: ClipboardList, label: "수술 정보 입력" },
     { path: "/analysis", icon: BarChart3, label: "성과 분석" },
     { path: "/reports", icon: FileText, label: "리포트" },
     ...(isAdminRole ? [{ path: "/admin/users", icon: ShieldCheck, label: "사용자 관리" }] : []),

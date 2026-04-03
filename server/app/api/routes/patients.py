@@ -20,6 +20,9 @@ async def list_patients(
     procedure_code: str | None = None,
     diagnosis_code: str | None = None,
     status_filter: str | None = None,
+    sex: str | None = None,
+    surgery_date_from: str | None = None,
+    surgery_date_to: str | None = None,
     ctx: AuthenticatedContext = Depends(require_auth),
 ):
     data = await patient_service.list_cases(
@@ -30,6 +33,9 @@ async def list_patients(
         procedure_code=procedure_code,
         diagnosis_code=diagnosis_code,
         status_filter=status_filter,
+        sex=sex,
+        surgery_date_from=surgery_date_from,
+        surgery_date_to=surgery_date_to,
     )
     return success("환자 리스트 조회가 완료되었습니다.", data.model_dump())
 

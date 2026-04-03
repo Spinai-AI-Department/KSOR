@@ -59,6 +59,9 @@ async def list_cases(
     procedure_code: str | None = None,
     diagnosis_code: str | None = None,
     status_filter: str | None = None,
+    sex: str | None = None,
+    surgery_date_from: str | None = None,
+    surgery_date_to: str | None = None,
 ) -> PatientListResponse:
     filters = ["case_status != 'ARCHIVED'"]
     params: list[Any] = []
@@ -72,6 +75,15 @@ async def list_cases(
     if diagnosis_code:
         filters.append("diagnosis_code = %s")
         params.append(diagnosis_code)
+    if sex:
+        filters.append("sex = %s")
+        params.append(sex)
+    if surgery_date_from:
+        filters.append("surgery_date >= %s")
+        params.append(surgery_date_from)
+    if surgery_date_to:
+        filters.append("surgery_date <= %s")
+        params.append(surgery_date_to)
     if status_filter:
         # Timepoint codes (PRE_OP, POST_1M, ...) filter by PROM request existence
         timepoint_codes = {"PRE_OP", "POST_1M", "POST_3M", "POST_6M", "POST_1Y",

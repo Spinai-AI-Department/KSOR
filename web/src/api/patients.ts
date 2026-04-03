@@ -63,6 +63,9 @@ export interface PatientListParams {
   procedure_code?: string
   diagnosis_code?: string
   status_filter?: string
+  sex?: string
+  surgery_date_from?: string
+  surgery_date_to?: string
   page?: number
   size?: number
 }
