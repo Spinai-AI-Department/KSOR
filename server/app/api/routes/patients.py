@@ -23,8 +23,19 @@ async def list_patients(
     sex: str | None = None,
     surgery_date_from: str | None = None,
     surgery_date_to: str | None = None,
+    spinal_region: str | None = None,
+    asa_class: str | None = None,
+    approach_type: str | None = None,
+    complication_yn: str | None = None,
+    reoperation_yn: str | None = None,
+    implant_used_yn: str | None = None,
     ctx: AuthenticatedContext = Depends(require_auth),
 ):
+    def to_bool(v: str | None) -> bool | None:
+        if v is None:
+            return None
+        return v.lower() == "true"
+
     data = await patient_service.list_cases(
         ctx.conn,
         page=page,
@@ -36,6 +47,12 @@ async def list_patients(
         sex=sex,
         surgery_date_from=surgery_date_from,
         surgery_date_to=surgery_date_to,
+        spinal_region=spinal_region,
+        asa_class=asa_class,
+        approach_type=approach_type,
+        complication_yn=to_bool(complication_yn),
+        reoperation_yn=to_bool(reoperation_yn),
+        implant_used_yn=to_bool(implant_used_yn),
     )
     return success("환자 리스트 조회가 완료되었습니다.", data.model_dump())
 

@@ -115,12 +115,24 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const [filterDiagnosis, setFilterDiagnosis] = useState("");
   const [filterProcedure, setFilterProcedure] = useState("");
   const [filterFollowup, setFilterFollowup] = useState("");
+  const [filterSpinalRegion, setFilterSpinalRegion] = useState("");
+  const [filterAsaClass, setFilterAsaClass] = useState("");
+  const [filterApproachType, setFilterApproachType] = useState("");
+  const [filterComplication, setFilterComplication] = useState("");
+  const [filterReoperation, setFilterReoperation] = useState("");
+  const [filterImplant, setFilterImplant] = useState("");
 
-  const activeFilterCount = [filterSex, filterSurgeryFrom || filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup].filter(Boolean).length;
+  const activeFilterCount = [
+    filterSex, filterSurgeryFrom || filterSurgeryTo, filterDiagnosis, filterProcedure,
+    filterFollowup, filterSpinalRegion, filterAsaClass, filterApproachType,
+    filterComplication, filterReoperation, filterImplant,
+  ].filter(Boolean).length;
 
   const resetFilters = () => {
     setFilterSex(""); setFilterSurgeryFrom(""); setFilterSurgeryTo("");
     setFilterDiagnosis(""); setFilterProcedure(""); setFilterFollowup("");
+    setFilterSpinalRegion(""); setFilterAsaClass(""); setFilterApproachType("");
+    setFilterComplication(""); setFilterReoperation(""); setFilterImplant("");
     setSearchId(""); setSearchName("");
     setPage(1);
   };
@@ -205,6 +217,12 @@ function PatientListTab({ cache, onCacheUpdate }: {
           diagnosis_code: filterDiagnosis || undefined,
           procedure_code: filterProcedure || undefined,
           status_filter: filterFollowup ? followupMap[filterFollowup] : undefined,
+          spinal_region: filterSpinalRegion || undefined,
+          asa_class: filterAsaClass || undefined,
+          approach_type: filterApproachType || undefined,
+          complication_yn: filterComplication || undefined,
+          reoperation_yn: filterReoperation || undefined,
+          implant_used_yn: filterImplant || undefined,
         },
         token
       );
@@ -292,14 +310,16 @@ function PatientListTab({ cache, onCacheUpdate }: {
     } finally {
       setListLoading(false);
     }
-  }, [token, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, page, onCacheUpdate]);
+  }, [token, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, filterSpinalRegion, filterAsaClass, filterApproachType, filterComplication, filterReoperation, filterImplant, page, onCacheUpdate]);
 
   // Skip initial fetch if mounted with cached data (default filters, page 1)
   const skipInitialFetch = useCallback(() => {
     return hasCacheRef && page === 1 && searchId === '' && searchName === ''
       && !filterSex && !filterSurgeryFrom && !filterSurgeryTo
-      && !filterDiagnosis && !filterProcedure && !filterFollowup;
-  }, [hasCacheRef, page, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup]);
+      && !filterDiagnosis && !filterProcedure && !filterFollowup
+      && !filterSpinalRegion && !filterAsaClass && !filterApproachType
+      && !filterComplication && !filterReoperation && !filterImplant;
+  }, [hasCacheRef, page, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, filterSpinalRegion, filterAsaClass, filterApproachType, filterComplication, filterReoperation, filterImplant]);
 
   useEffect(() => {
     if (skipInitialFetch()) return;
@@ -576,6 +596,120 @@ function PatientListTab({ cache, onCacheUpdate }: {
                 <button key={opt} onClick={() => { setFilterFollowup(filterFollowup === opt ? '' : opt); setPage(1); setOpenDropdown(null); }}
                   className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterFollowup === opt ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
                 >{opt}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 척추 부위 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'spinalRegion' ? null : 'spinalRegion')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterSpinalRegion ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterSpinalRegion ? `부위: ${filterSpinalRegion === 'LUMBAR' ? '요추' : '경추'}` : '척추 부위'}
+            {filterSpinalRegion ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterSpinalRegion(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'spinalRegion' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[130px] py-1.5">
+              {[{ label: '요추 (LUMBAR)', value: 'LUMBAR' }, { label: '경추 (CERVICAL)', value: 'CERVICAL' }].map(opt => (
+                <button key={opt.value} onClick={() => { setFilterSpinalRegion(filterSpinalRegion === opt.value ? '' : opt.value); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterSpinalRegion === opt.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ASA 분류 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'asa' ? null : 'asa')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterAsaClass ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterAsaClass ? `ASA: ${filterAsaClass}` : 'ASA 분류'}
+            {filterAsaClass ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterAsaClass(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'asa' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[110px] py-1.5">
+              {['I', 'II', 'III', 'IV'].map(opt => (
+                <button key={opt} onClick={() => { setFilterAsaClass(filterAsaClass === opt ? '' : opt); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterAsaClass === opt ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >ASA {opt}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 수술 접근법 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'approach' ? null : 'approach')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterApproachType ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterApproachType ? `접근법: ${filterApproachType}` : '수술 접근법'}
+            {filterApproachType ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterApproachType(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'approach' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[150px] py-1.5">
+              {['Full-endo', 'UBE', 'Biportal', 'Open'].map(opt => (
+                <button key={opt} onClick={() => { setFilterApproachType(filterApproachType === opt ? '' : opt); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterApproachType === opt ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 합병증 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'complication' ? null : 'complication')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterComplication ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterComplication ? `합병증: ${filterComplication === 'true' ? '있음' : '없음'}` : '합병증'}
+            {filterComplication ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterComplication(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'complication' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[110px] py-1.5">
+              {[{ label: '있음', value: 'true' }, { label: '없음', value: 'false' }].map(opt => (
+                <button key={opt.value} onClick={() => { setFilterComplication(filterComplication === opt.value ? '' : opt.value); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterComplication === opt.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 재수술 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'reoperation' ? null : 'reoperation')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterReoperation ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterReoperation ? `재수술: ${filterReoperation === 'true' ? '있음' : '없음'}` : '재수술'}
+            {filterReoperation ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterReoperation(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'reoperation' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[110px] py-1.5">
+              {[{ label: '있음', value: 'true' }, { label: '없음', value: 'false' }].map(opt => (
+                <button key={opt.value} onClick={() => { setFilterReoperation(filterReoperation === opt.value ? '' : opt.value); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterReoperation === opt.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 임플란트 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'implant' ? null : 'implant')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterImplant ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterImplant ? `임플란트: ${filterImplant === 'true' ? '사용' : '미사용'}` : '임플란트'}
+            {filterImplant ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterImplant(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'implant' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[110px] py-1.5">
+              {[{ label: '사용', value: 'true' }, { label: '미사용', value: 'false' }].map(opt => (
+                <button key={opt.value} onClick={() => { setFilterImplant(filterImplant === opt.value ? '' : opt.value); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterImplant === opt.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt.label}</button>
               ))}
             </div>
           )}

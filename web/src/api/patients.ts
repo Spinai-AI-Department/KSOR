@@ -66,6 +66,12 @@ export interface PatientListParams {
   sex?: string
   surgery_date_from?: string
   surgery_date_to?: string
+  spinal_region?: string
+  asa_class?: string
+  approach_type?: string
+  complication_yn?: string
+  reoperation_yn?: string
+  implant_used_yn?: string
   page?: number
   size?: number
 }

@@ -62,6 +62,12 @@ async def list_cases(
     sex: str | None = None,
     surgery_date_from: str | None = None,
     surgery_date_to: str | None = None,
+    spinal_region: str | None = None,
+    asa_class: str | None = None,
+    approach_type: str | None = None,
+    complication_yn: bool | None = None,
+    reoperation_yn: bool | None = None,
+    implant_used_yn: bool | None = None,
 ) -> PatientListResponse:
     filters = ["case_status != 'ARCHIVED'"]
     params: list[Any] = []
@@ -84,6 +90,24 @@ async def list_cases(
     if surgery_date_to:
         filters.append("surgery_date <= %s")
         params.append(surgery_date_to)
+    if spinal_region:
+        filters.append("case_id IN (SELECT case_id FROM clinical.case_record WHERE spinal_region = %s)")
+        params.append(spinal_region)
+    if asa_class:
+        filters.append("case_id IN (SELECT case_id FROM clinical.case_initial_form WHERE additional_attributes->>'asa_class' = %s)")
+        params.append(asa_class)
+    if approach_type:
+        filters.append("case_id IN (SELECT case_id FROM clinical.case_extended_form WHERE approach_type = %s)")
+        params.append(approach_type)
+    if complication_yn is not None:
+        filters.append("case_id IN (SELECT case_id FROM clinical.case_outcome_form WHERE complication_yn = %s)")
+        params.append(complication_yn)
+    if reoperation_yn is not None:
+        filters.append("case_id IN (SELECT case_id FROM clinical.case_outcome_form WHERE reoperation_yn = %s)")
+        params.append(reoperation_yn)
+    if implant_used_yn is not None:
+        filters.append("case_id IN (SELECT case_id FROM clinical.case_extended_form WHERE implant_used_yn = %s)")
+        params.append(implant_used_yn)
     if status_filter:
         # Timepoint codes (PRE_OP, POST_1M, ...) filter by PROM request existence
         timepoint_codes = {"PRE_OP", "POST_1M", "POST_3M", "POST_6M", "POST_1Y",
