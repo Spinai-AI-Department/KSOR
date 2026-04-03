@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, Navigate } from "react-router";
 import { LayoutGrid, Users, BarChart3, FileText, LogOut, ChevronRight, Menu, ShieldCheck } from "lucide-react";
 import logoImage from "@/assets/logo.png";
@@ -8,6 +8,11 @@ export function Layout() {
   const location = useLocation();
   const { isAuthenticated, user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -118,7 +123,7 @@ export function Layout() {
           <img src={logoImage} alt="KOMISS Logo" className="w-8 h-8" />
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main ref={mainRef} className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>
