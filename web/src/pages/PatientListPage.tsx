@@ -105,8 +105,17 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const navigate = useNavigate();
   const location = useLocation();
   const topRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Raw input values (update on every keystroke for display)
   const [searchId, setSearchId] = useState("");
   const [searchName, setSearchName] = useState("");
+  const [surgeonInput, setSurgeonInput] = useState("");
+
+  // Debounced values (trigger API calls after 400ms idle)
+  const [debouncedSearchId, setDebouncedSearchId] = useState("");
+  const [debouncedSearchName, setDebouncedSearchName] = useState("");
+  const [debouncedSurgeonName, setDebouncedSurgeonName] = useState("");
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
 
   // Filters
@@ -125,6 +134,20 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const [filterReoperation, setFilterReoperation] = useState("");
   const [filterImplant, setFilterImplant] = useState("");
 
+  // Debounce text inputs → 400ms
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearchId(searchId); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [searchId]);
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearchName(searchName); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [searchName]);
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSurgeonName(surgeonInput); setFilterSurgeonName(surgeonInput); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [surgeonInput]);
+
   const activeFilterCount = [
     filterSex, filterSurgeryFrom || filterSurgeryTo, filterDiagnosis, filterProcedure,
     filterFollowup, filterSurgeonName, filterSpinalRegion, filterAsaClass, filterApproachType,
@@ -134,9 +157,10 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const resetFilters = () => {
     setFilterSex(""); setFilterSurgeryFrom(""); setFilterSurgeryTo("");
     setFilterDiagnosis(""); setFilterProcedure(""); setFilterFollowup("");
-    setFilterSurgeonName(""); setFilterSpinalRegion(""); setFilterAsaClass(""); setFilterApproachType("");
+    setFilterSurgeonName(""); setSurgeonInput(""); setDebouncedSurgeonName("");
+    setFilterSpinalRegion(""); setFilterAsaClass(""); setFilterApproachType("");
     setFilterComplication(""); setFilterReoperation(""); setFilterImplant("");
-    setSearchId(""); setSearchName("");
+    setSearchId(""); setSearchName(""); setDebouncedSearchId(""); setDebouncedSearchName("");
     setPage(1);
   };
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
@@ -207,9 +231,11 @@ function PatientListTab({ cache, onCacheUpdate }: {
 
   const fetchPatients = useCallback(async () => {
     if (!token) return;
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     setListLoading(true);
     try {
-      const keyword = [searchId, searchName].filter(Boolean).join(' ').trim() || undefined;
+      const keyword = [debouncedSearchId, debouncedSearchName].filter(Boolean).join(' ').trim() || undefined;
       const followupMap: Record<string, string> = {
         'Pre-op': 'PRE_OP', '1개월': 'POST_1M', '3개월': 'POST_3M', '6개월': 'POST_6M', '1년': 'POST_1Y',
       };
@@ -227,7 +253,7 @@ function PatientListTab({ cache, onCacheUpdate }: {
           spinal_region: filterSpinalRegion || undefined,
           asa_class: filterAsaClass || undefined,
           approach_type: filterApproachType || undefined,
-          surgeon_name: filterSurgeonName || undefined,
+          surgeon_name: debouncedSurgeonName || undefined,
           complication_yn: filterComplication || undefined,
           reoperation_yn: filterReoperation || undefined,
           implant_used_yn: filterImplant || undefined,
@@ -319,16 +345,16 @@ function PatientListTab({ cache, onCacheUpdate }: {
     } finally {
       setListLoading(false);
     }
-  }, [token, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, filterSurgeonName, filterSpinalRegion, filterAsaClass, filterApproachType, filterComplication, filterReoperation, filterImplant, page, onCacheUpdate]);
+  }, [token, debouncedSearchId, debouncedSearchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, debouncedSurgeonName, filterSpinalRegion, filterAsaClass, filterApproachType, filterComplication, filterReoperation, filterImplant, page, onCacheUpdate]);
 
   // Skip initial fetch if mounted with cached data (default filters, page 1)
   const skipInitialFetch = useCallback(() => {
-    return hasCacheRef && page === 1 && searchId === '' && searchName === ''
+    return hasCacheRef && page === 1 && debouncedSearchId === '' && debouncedSearchName === ''
       && !filterSex && !filterSurgeryFrom && !filterSurgeryTo
       && !filterDiagnosis && !filterProcedure && !filterFollowup
-      && !filterSurgeonName && !filterSpinalRegion && !filterAsaClass && !filterApproachType
+      && !debouncedSurgeonName && !filterSpinalRegion && !filterAsaClass && !filterApproachType
       && !filterComplication && !filterReoperation && !filterImplant;
-  }, [hasCacheRef, page, searchId, searchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, filterSurgeonName, filterSpinalRegion, filterAsaClass, filterApproachType, filterComplication, filterReoperation, filterImplant]);
+  }, [hasCacheRef, page, debouncedSearchId, debouncedSearchName, filterSex, filterSurgeryFrom, filterSurgeryTo, filterDiagnosis, filterProcedure, filterFollowup, debouncedSurgeonName, filterSpinalRegion, filterAsaClass, filterApproachType, filterComplication, filterReoperation, filterImplant]);
 
   useEffect(() => {
     if (skipInitialFetch()) return;
@@ -472,16 +498,16 @@ function PatientListTab({ cache, onCacheUpdate }: {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input type="text" placeholder="환자 번호" value={searchId}
-            onChange={(e) => { setSearchId(e.target.value); setPage(1); }}
+            onChange={(e) => setSearchId(e.target.value)}
             className="pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
           />
         </div>
         <input type="text" placeholder="이름" value={searchName}
-          onChange={(e) => { setSearchName(e.target.value); setPage(1); }}
+          onChange={(e) => setSearchName(e.target.value)}
           className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
         />
-        <input type="text" placeholder="집도의" value={filterSurgeonName}
-          onChange={(e) => { setFilterSurgeonName(e.target.value); setPage(1); }}
+        <input type="text" placeholder="집도의" value={surgeonInput}
+          onChange={(e) => setSurgeonInput(e.target.value)}
           className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
         />
         <button onClick={() => setShowNewPatientModal(true)}
