@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router";
-import { Search, ChevronDown, ChevronUp, Edit, MoreHorizontal, Plus, X, SlidersHorizontal } from "lucide-react";
+import { Search, ChevronDown, Edit, MoreHorizontal, Plus, X } from "lucide-react";
 import { patientService, type Patient as ApiPatient } from "../api/patients";
 import { dashboardService } from "../api/dashboard";
 import { ApiValidationError, translateValidationMsg } from "../api/client";
@@ -107,11 +107,8 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const [searchName, setSearchName] = useState("");
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
 
-  // Filter sidebar
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedSections, setExpandedSections] = useState({
-    sex: true, surgeryDate: true, diagnosis: true, procedure: true, followup: true,
-  });
+  // Filters
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [filterSex, setFilterSex] = useState("");
   const [filterSurgeryFrom, setFilterSurgeryFrom] = useState("");
   const [filterSurgeryTo, setFilterSurgeryTo] = useState("");
@@ -127,9 +124,6 @@ function PatientListTab({ cache, onCacheUpdate }: {
     setSearchId(""); setSearchName("");
     setPage(1);
   };
-
-  const toggleSection = (key: keyof typeof expandedSections) =>
-    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
 
   // Patient list state — seed from cache if available
@@ -443,179 +437,157 @@ function PatientListTab({ cache, onCacheUpdate }: {
         </div>
       )}
 
-      {/* Top bar */}
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={() => setSidebarOpen(o => !o)}
-          className="relative flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          필터
-          {activeFilterCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center font-medium">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
+      {/* Search + action bar */}
+      <div className="flex items-center gap-3 mb-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="환자 번호"
-            value={searchId}
+          <input type="text" placeholder="환자 번호" value={searchId}
             onChange={(e) => { setSearchId(e.target.value); setPage(1); }}
             className="pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
           />
         </div>
-        <input
-          type="text"
-          placeholder="이름"
-          value={searchName}
+        <input type="text" placeholder="이름" value={searchName}
           onChange={(e) => { setSearchName(e.target.value); setPage(1); }}
           className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
         />
-        <button
-          onClick={() => setShowNewPatientModal(true)}
+        <button onClick={() => setShowNewPatientModal(true)}
           className="ml-auto flex items-center gap-2 px-5 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
         >
-          <Plus className="w-4 h-4" />
-          신규 등록
+          <Plus className="w-4 h-4" />신규 등록
         </button>
       </div>
 
-      {/* Main content: sidebar + table */}
-      <div className="flex gap-4 items-start">
+      {/* Horizontal filter bar */}
+      {openDropdown && (
+        <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
+      )}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
 
-        {/* ── Filter Sidebar ── */}
-        {sidebarOpen && (
-          <div className="w-52 flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">필터</span>
-              {activeFilterCount > 0 && (
-                <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">초기화</button>
-              )}
+        {/* 성별 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'sex' ? null : 'sex')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterSex ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterSex ? `성별: ${filterSex === 'M' ? '남성' : '여성'}` : '성별'}
+            {filterSex ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterSex(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'sex' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[130px] py-1.5">
+              {[{ label: '남성 (M)', value: 'M' }, { label: '여성 (F)', value: 'F' }].map(opt => (
+                <button key={opt.value} onClick={() => { setFilterSex(filterSex === opt.value ? '' : opt.value); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterSex === opt.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt.label}</button>
+              ))}
             </div>
+          )}
+        </div>
 
-            {/* 성별 */}
-            <div className="border-b border-gray-100 dark:border-gray-700">
-              <button onClick={() => toggleSection('sex')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                성별
-                {expandedSections.sex ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-              </button>
-              {expandedSections.sex && (
-                <div className="px-4 pb-3 space-y-2">
-                  {[{ label: "전체", value: "" }, { label: "남성 (M)", value: "M" }, { label: "여성 (F)", value: "F" }].map(opt => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="sex" checked={filterSex === opt.value} onChange={() => { setFilterSex(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
+        {/* 수술일 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'surgeryDate' ? null : 'surgeryDate')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${(filterSurgeryFrom || filterSurgeryTo) ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterSurgeryFrom || filterSurgeryTo
+              ? `수술일: ${filterSurgeryFrom || '~'} ~ ${filterSurgeryTo || '~'}`
+              : '수술일'}
+            {(filterSurgeryFrom || filterSurgeryTo)
+              ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterSurgeryFrom(''); setFilterSurgeryTo(''); setPage(1); }} />
+              : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'surgeryDate' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-4 min-w-[220px]">
+              <div className="mb-3">
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">시작일</p>
+                <input type="date" value={filterSurgeryFrom} onChange={(e) => { setFilterSurgeryFrom(e.target.value); setPage(1); }}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">종료일</p>
+                <input type="date" value={filterSurgeryTo} onChange={(e) => { setFilterSurgeryTo(e.target.value); setPage(1); }}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
             </div>
+          )}
+        </div>
 
-            {/* 수술일 */}
-            <div className="border-b border-gray-100 dark:border-gray-700">
-              <button onClick={() => toggleSection('surgeryDate')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                수술일
-                {expandedSections.surgeryDate ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-              </button>
-              {expandedSections.surgeryDate && (
-                <div className="px-4 pb-3 space-y-2">
-                  <div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">시작</p>
-                    <input type="date" value={filterSurgeryFrom} onChange={(e) => { setFilterSurgeryFrom(e.target.value); setPage(1); }}
-                      className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">종료</p>
-                    <input type="date" value={filterSurgeryTo} onChange={(e) => { setFilterSurgeryTo(e.target.value); setPage(1); }}
-                      className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                  </div>
-                </div>
-              )}
+        {/* 진단명 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'diagnosis' ? null : 'diagnosis')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterDiagnosis ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterDiagnosis ? `진단명: ${filterDiagnosis}` : '진단명'}
+            {filterDiagnosis ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterDiagnosis(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'diagnosis' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[200px] py-1.5">
+              {[
+                { label: 'HNP (추간판 탈출증)', value: 'HNP' },
+                { label: 'STENOSIS (척추관 협착증)', value: 'STENOSIS' },
+                { label: 'SPONDY (척추전방전위증)', value: 'SPONDY' },
+                { label: 'D001 (요추 디스크)', value: 'D001' },
+                { label: 'D002 (척추관 협착증)', value: 'D002' },
+                { label: 'D003 (경추 디스크)', value: 'D003' },
+              ].map(opt => (
+                <button key={opt.value} onClick={() => { setFilterDiagnosis(filterDiagnosis === opt.value ? '' : opt.value); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterDiagnosis === opt.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt.label}</button>
+              ))}
             </div>
+          )}
+        </div>
 
-            {/* 진단명 */}
-            <div className="border-b border-gray-100 dark:border-gray-700">
-              <button onClick={() => toggleSection('diagnosis')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                진단명
-                {expandedSections.diagnosis ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-              </button>
-              {expandedSections.diagnosis && (
-                <div className="px-4 pb-3 space-y-2">
-                  {[
-                    { label: "전체", value: "" },
-                    { label: "추간판 탈출증 (HNP)", value: "HNP" },
-                    { label: "척추관 협착증", value: "STENOSIS" },
-                    { label: "척추전방전위증", value: "SPONDY" },
-                    { label: "요추 디스크 (D001)", value: "D001" },
-                    { label: "경추 디스크 (D003)", value: "D003" },
-                  ].map(opt => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="diagnosis" checked={filterDiagnosis === opt.value} onChange={() => { setFilterDiagnosis(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400 leading-tight">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
+        {/* 수술 방법 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'procedure' ? null : 'procedure')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterProcedure ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterProcedure ? `수술: ${filterProcedure}` : '수술 방법'}
+            {filterProcedure ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterProcedure(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'procedure' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[210px] py-1.5">
+              {[
+                { label: 'FULL_ENDO (단일공 내시경)', value: 'FULL_ENDO' },
+                { label: 'UBE (양방향 내시경)', value: 'UBE' },
+                { label: 'SPINOSCOPY', value: 'SPINOSCOPY' },
+                { label: 'P001 (내시경 디스크 절제)', value: 'P001' },
+                { label: 'P002 (UBE 감압술)', value: 'P002' },
+                { label: 'P003 (현미경 디스크 절제)', value: 'P003' },
+              ].map(opt => (
+                <button key={opt.value} onClick={() => { setFilterProcedure(filterProcedure === opt.value ? '' : opt.value); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterProcedure === opt.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt.label}</button>
+              ))}
             </div>
+          )}
+        </div>
 
-            {/* 수술 방법 */}
-            <div className="border-b border-gray-100 dark:border-gray-700">
-              <button onClick={() => toggleSection('procedure')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                수술 방법
-                {expandedSections.procedure ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-              </button>
-              {expandedSections.procedure && (
-                <div className="px-4 pb-3 space-y-2">
-                  {[
-                    { label: "전체", value: "" },
-                    { label: "Full-endoscopic", value: "FULL_ENDO" },
-                    { label: "UBE", value: "UBE" },
-                    { label: "Spinoscopy", value: "SPINOSCOPY" },
-                    { label: "내시경 디스크 절제 (P001)", value: "P001" },
-                    { label: "UBE 감압술 (P002)", value: "P002" },
-                    { label: "현미경 절제 (P003)", value: "P003" },
-                  ].map(opt => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="procedure" checked={filterProcedure === opt.value} onChange={() => { setFilterProcedure(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400 leading-tight">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
+        {/* Follow-up 시점 */}
+        <div className="relative z-20">
+          <button onClick={() => setOpenDropdown(openDropdown === 'followup' ? null : 'followup')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${filterFollowup ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500'}`}
+          >
+            {filterFollowup ? `F/U: ${filterFollowup}` : 'Follow-up'}
+            {filterFollowup ? <X className="w-3 h-3" onClick={(e) => { e.stopPropagation(); setFilterFollowup(''); setPage(1); }} /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {openDropdown === 'followup' && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg min-w-[130px] py-1.5">
+              {['Pre-op', '1개월', '3개월', '6개월', '1년'].map(opt => (
+                <button key={opt} onClick={() => { setFilterFollowup(filterFollowup === opt ? '' : opt); setPage(1); setOpenDropdown(null); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${filterFollowup === opt ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                >{opt}</button>
+              ))}
             </div>
+          )}
+        </div>
 
-            {/* Follow-up 시점 */}
-            <div>
-              <button onClick={() => toggleSection('followup')} className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                Follow-up 시점
-                {expandedSections.followup ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-              </button>
-              {expandedSections.followup && (
-                <div className="px-4 pb-3 space-y-2">
-                  {[
-                    { label: "전체", value: "" },
-                    { label: "Pre-op", value: "Pre-op" },
-                    { label: "1개월", value: "1개월" },
-                    { label: "3개월", value: "3개월" },
-                    { label: "6개월", value: "6개월" },
-                    { label: "1년", value: "1년" },
-                  ].map(opt => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="followup" checked={filterFollowup === opt.value} onChange={() => { setFilterFollowup(opt.value); setPage(1); }} className="w-3.5 h-3.5 accent-blue-600" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+        {/* 초기화 */}
+        {activeFilterCount > 0 && (
+          <button onClick={resetFilters} className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+            <X className="w-3.5 h-3.5" />초기화
+          </button>
         )}
-
-        {/* ── Table area ── */}
-        <div className="flex-1 min-w-0">
+      </div>
 
       {/* Patient Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm mb-6 overflow-hidden">
@@ -746,9 +718,6 @@ function PatientListTab({ cache, onCacheUpdate }: {
           </div>
         </div>
       </div>
-
-        </div>{/* end table area */}
-      </div>{/* end flex row */}
 
       {/* 최근 환자 F/U 현황 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden">
