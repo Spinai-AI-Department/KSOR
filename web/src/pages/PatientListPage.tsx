@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { ConfirmDialog } from "@/components/ui/toast-modal";
 
 type FollowUpStatus = "Completed" | "Pending" | "Not Due" | "Overdue";
+type TimepointKey = "preOp" | "m1" | "m3" | "m6" | "yr1";
 type TabType = "list" | "complication";
 
 interface Patient {
@@ -26,20 +27,30 @@ interface Patient {
   m6: FollowUpStatus;
   yr1: FollowUpStatus;
   followupTimepoints: string[];
+  overdueInfo: Partial<Record<TimepointKey, number>>;
 }
 
 const followUpPeriods = ["전체", "Pre-op", "1개월", "3개월", "6개월", "1년"];
 
-function StatusBadge({ status }: { status: FollowUpStatus }) {
+function formatOverdue(days: number): string {
+  if (days < 7) return `+${days}d`;
+  if (days < 30) return `+${Math.floor(days / 7)}w`;
+  return `+${Math.floor(days / 30)}m`;
+}
+
+function StatusBadge({ status, overdueDays }: { status: FollowUpStatus; overdueDays?: number }) {
   const styles: Record<FollowUpStatus, string> = {
     Completed: "bg-green-100 text-green-700 border border-green-200",
     Pending:   "bg-yellow-100 text-yellow-700 border border-yellow-200",
     "Not Due": "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600",
     Overdue:   "bg-red-100 text-red-600 border border-red-200",
   };
+  const label = status === "Overdue" && overdueDays != null && overdueDays > 0
+    ? `Overdue ${formatOverdue(overdueDays)}`
+    : status;
   return (
     <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${styles[status]}`}>
-      {status}
+      {label}
     </span>
   );
 }
@@ -48,10 +59,11 @@ const TIMEPOINT_CODE_MAP: Record<string, string> = {
   preOp: "PRE_OP", m1: "POST_1M", m3: "POST_3M", m6: "POST_6M", yr1: "POST_1Y",
 };
 
-function FollowUpCell({ status, timepointKey, followupTimepoints }: {
+function FollowUpCell({ status, timepointKey, followupTimepoints, overdueDays }: {
   status: FollowUpStatus;
   timepointKey: string;
   followupTimepoints: string[];
+  overdueDays?: number;
 }) {
   const code = TIMEPOINT_CODE_MAP[timepointKey];
   const isScheduled = followupTimepoints.includes(code);
@@ -61,7 +73,7 @@ function FollowUpCell({ status, timepointKey, followupTimepoints }: {
     return <span className="text-gray-300 dark:text-gray-600">—</span>;
   }
 
-  return <StatusBadge status={status} />;
+  return <StatusBadge status={status} overdueDays={overdueDays} />;
 }
 
 function RecentFUStatusBadge({ status }: { status: string }) {
@@ -214,6 +226,21 @@ function PatientListTab({ cache, onCacheUpdate }: {
         const prom = p.promAlimtalk as Record<string, unknown>;
         const followupTimepoints = (prom?.followup_timepoints as string[] | undefined) ?? [];
 
+        const TIMEPOINT_DAY_OFFSET: Record<string, number> = {
+          PRE_OP: 0, POST_1M: 30, POST_3M: 90, POST_6M: 180, POST_1Y: 365,
+        };
+        const calcOverdueDays = (timepointCode: string): number => {
+          if (!p.surgeryDate) return 0;
+          const offset = TIMEPOINT_DAY_OFFSET[timepointCode];
+          if (offset == null) return 0;
+          const expected = new Date(p.surgeryDate);
+          expected.setDate(expected.getDate() + offset);
+          expected.setHours(0, 0, 0, 0);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return Math.max(0, Math.floor((today.getTime() - expected.getTime()) / 86400000));
+        };
+
         return {
           id: p.id, caseId: p.caseId, registrationId: p.registrationId, name: p.name,
           genderAge: p.genderAge, visitDate: p.visitDate,
@@ -224,6 +251,13 @@ function PatientListTab({ cache, onCacheUpdate }: {
           m6: mapTimepointStatus('POST_6M'),
           yr1: mapTimepointStatus('POST_1Y'),
           followupTimepoints,
+          overdueInfo: {
+            preOp: calcOverdueDays('PRE_OP'),
+            m1: calcOverdueDays('POST_1M'),
+            m3: calcOverdueDays('POST_3M'),
+            m6: calcOverdueDays('POST_6M'),
+            yr1: calcOverdueDays('POST_1Y'),
+          },
         };
       });
       setPatients(mapped);
@@ -476,11 +510,11 @@ function PatientListTab({ cache, onCacheUpdate }: {
                   <td className="text-left px-4 py-3.5 text-sm text-gray-800 dark:text-gray-200 whitespace-nowrap">{patient.surgeryDate || "-"}</td>
                   <td className="text-left px-4 py-3.5 text-sm text-gray-800 dark:text-gray-200 whitespace-nowrap">{patient.diagnosisCode || "-"}</td>
                   <td className="text-left px-4 py-3.5 text-sm text-gray-800 dark:text-gray-200 whitespace-nowrap">{patient.procedureCode || "-"}</td>
-                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.preOp} timepointKey="preOp" followupTimepoints={patient.followupTimepoints} /></td>
-                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m1} timepointKey="m1" followupTimepoints={patient.followupTimepoints} /></td>
-                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m3} timepointKey="m3" followupTimepoints={patient.followupTimepoints} /></td>
-                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m6} timepointKey="m6" followupTimepoints={patient.followupTimepoints} /></td>
-                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.yr1} timepointKey="yr1" followupTimepoints={patient.followupTimepoints} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.preOp} timepointKey="preOp" followupTimepoints={patient.followupTimepoints} overdueDays={patient.overdueInfo.preOp} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m1} timepointKey="m1" followupTimepoints={patient.followupTimepoints} overdueDays={patient.overdueInfo.m1} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m3} timepointKey="m3" followupTimepoints={patient.followupTimepoints} overdueDays={patient.overdueInfo.m3} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.m6} timepointKey="m6" followupTimepoints={patient.followupTimepoints} overdueDays={patient.overdueInfo.m6} /></td>
+                  <td className="px-3 py-3.5 text-center"><FollowUpCell status={patient.yr1} timepointKey="yr1" followupTimepoints={patient.followupTimepoints} overdueDays={patient.overdueInfo.yr1} /></td>
                   <td className="text-left px-4 py-3.5">
                     <div className="flex items-center gap-2 relative">
                       <button

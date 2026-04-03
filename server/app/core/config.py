@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     password_regex: str = r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,128}$"
 
     default_prom_request_expire_days: int = 7
+    prom_scheduler_expire_days: int = 7
     login_failure_lock_count: int = 5
     login_throttle_window_seconds: int = 60
     login_throttle_max_per_ip: int = 30
