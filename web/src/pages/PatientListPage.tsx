@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { Search, ChevronDown, Edit, MoreHorizontal, Plus, X } from "lucide-react";
 import { patientService, type Patient as ApiPatient } from "../api/patients";
@@ -104,6 +104,7 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const { token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const topRef = useRef<HTMLDivElement>(null);
   const [searchId, setSearchId] = useState("");
   const [searchName, setSearchName] = useState("");
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
@@ -147,6 +148,10 @@ function PatientListTab({ cache, onCacheUpdate }: {
   const [listLoading, setListLoading] = useState(false);
   const hasCacheRef = useState(() => cache !== null)[0]; // true if mounted with cache
   const PAGE_SIZE = 20;
+
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [page]);
 
   // New patient form state
   const [newForm, setNewForm] = useState({ name: "", birth_date: "", gender: "M" as "M" | "F" });
@@ -461,6 +466,7 @@ function PatientListTab({ cache, onCacheUpdate }: {
         </div>
       )}
 
+      <div ref={topRef} />
       {/* Search + action bar */}
       <div className="flex items-center gap-3 mb-3">
         <div className="relative">
